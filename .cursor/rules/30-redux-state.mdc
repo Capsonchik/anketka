@@ -1,0 +1,12 @@
+---
+description: State management (Redux + local state)
+globs: '**/*.{ts,tsx,js,jsx}'
+alwaysApply: false
+---
+
+# State management
+- Глобальное состояние — Redux.
+- Локальное UI-состояние — `useState` / `useReducer`.
+- Поднимай стейт вверх только когда нужно шарить между компонентами.
+- Context используй для промежуточного шаринга, когда prop drilling мешает (не вместо Redux для глобального).
+- В FSD всё про Redux держи в `model/` (slice, actions, selectors, types).

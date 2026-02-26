@@ -1,0 +1,177 @@
+.grid {
+  width: 100%;
+  max-width: 620px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.card {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(10, 30, 60, 0.06);
+  box-shadow: 0 18px 40px rgba(18, 46, 90, 0.08);
+  overflow: hidden;
+  min-height: 236px;
+}
+
+.cardTop {
+  height: 154px;
+  padding: 18px 18px 16px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(119, 221, 231, 0.45), transparent 55%),
+    radial-gradient(circle at 85% 60%, rgba(66, 170, 255, 0.35), transparent 58%),
+    rgba(154, 206, 235, 0.14);
+}
+
+.cardBottom {
+  padding: 16px 18px 18px;
+}
+
+.cardTitle {
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.cardSubtitle {
+  margin-top: 4px;
+  font-weight: 650;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.illustration {
+  position: relative;
+  height: 100%;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(10, 30, 60, 0.06);
+  overflow: hidden;
+}
+
+.chartBar {
+  position: absolute;
+  bottom: 14px;
+  width: 16px;
+  border-radius: 999px;
+  background: rgba(66, 170, 255, 0.48);
+}
+
+.chartBar:nth-child(1) {
+  left: 18px;
+  height: 56px;
+  background: rgba(66, 170, 255, 0.45);
+}
+
+.chartBar:nth-child(2) {
+  left: 44px;
+  height: 80px;
+  background: rgba(119, 221, 231, 0.55);
+}
+
+.chartBar:nth-child(3) {
+  left: 70px;
+  height: 44px;
+  background: rgba(154, 206, 235, 0.7);
+}
+
+.chartLine {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 34px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(66, 170, 255, 0.1), rgba(66, 170, 255, 0.6), rgba(66, 170, 255, 0.18));
+  transform: rotate(-10deg);
+}
+
+.mapPin {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(66, 170, 255, 0.7);
+  box-shadow: 0 10px 18px rgba(66, 170, 255, 0.22);
+}
+
+.mapPin:nth-child(1) {
+  left: 22px;
+  top: 26px;
+  background: rgba(119, 221, 231, 0.85);
+}
+
+.mapPin:nth-child(2) {
+  left: 80px;
+  top: 56px;
+}
+
+.mapPin:nth-child(3) {
+  left: 44px;
+  top: 86px;
+  background: rgba(154, 206, 235, 0.9);
+}
+
+.mapRing {
+  position: absolute;
+  left: 20px;
+  top: 24px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid rgba(119, 221, 231, 0.35);
+}
+
+.toolsGrid {
+  position: absolute;
+  inset: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.toolsTile {
+  border-radius: 12px;
+  background: rgba(66, 170, 255, 0.18);
+  border: 1px solid rgba(66, 170, 255, 0.18);
+}
+
+.toolsTile:nth-child(2) {
+  background: rgba(119, 221, 231, 0.2);
+}
+
+.toolsTile:nth-child(3) {
+  background: rgba(154, 206, 235, 0.24);
+}
+
+.directionsRow {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(66, 170, 255, 0.16);
+  border: 1px solid rgba(10, 30, 60, 0.06);
+}
+
+.directionsRow:nth-child(1) {
+  top: 24px;
+}
+
+.directionsRow:nth-child(2) {
+  top: 52px;
+  background: rgba(119, 221, 231, 0.18);
+}
+
+.directionsRow:nth-child(3) {
+  top: 80px;
+  background: rgba(154, 206, 235, 0.22);
+}
+
+@media (max-width: 420px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+

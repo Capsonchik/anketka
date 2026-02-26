@@ -1,12 +1,66 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --brand-primary: #42aaff;
+  --brand-secondary: #77dde7;
+  --brand-soft: #9aceeb;
+
+  --font-main: 'Gilroy', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+
+  --background: #f6fbff;
+  --foreground: #0b1220;
+  --surface: rgba(255, 255, 255, 0.84);
+  --border: rgba(10, 30, 60, 0.08);
+  --text-primary: #0b1220;
+  --text-secondary: rgba(11, 18, 32, 0.68);
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: local('Gilroy'), local('Gilroy-Regular');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: local('Gilroy'), local('Gilroy-Medium');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: local('Gilroy'), local('Gilroy-Semibold');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: local('Gilroy'), local('Gilroy-Bold');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: local('Gilroy'), local('Gilroy-Black');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #07101a;
+    --foreground: #eef5ff;
+    --surface: rgba(20, 30, 44, 0.72);
+    --border: rgba(230, 245, 255, 0.08);
+    --text-primary: #eef5ff;
+    --text-secondary: rgba(238, 245, 255, 0.72);
   }
 }
 
@@ -18,8 +72,12 @@ body {
 
 body {
   color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(119, 221, 231, 0.26), transparent 45%),
+    radial-gradient(circle at 80% 10%, rgba(66, 170, 255, 0.22), transparent 45%),
+    radial-gradient(circle at 30% 90%, rgba(154, 206, 235, 0.22), transparent 50%),
+    var(--background);
+  font-family: var(--font-main);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

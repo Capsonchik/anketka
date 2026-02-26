@@ -1,0 +1,18 @@
+.page {
+  min-height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 76px;
+  padding: 28px 0 96px;
+}
+
+@media (max-width: 900px) {
+  .main {
+    gap: 56px;
+    padding-bottom: 80px;
+  }
+}
+

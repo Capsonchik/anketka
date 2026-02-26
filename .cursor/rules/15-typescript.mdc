@@ -1,0 +1,12 @@
+---
+description: TypeScript conventions (no prop-types)
+globs: '**/*.{ts,tsx}'
+alwaysApply: false
+---
+
+# TypeScript
+- Не использовать `prop-types` (всё типизируется TypeScript).
+- Избегай `any`; если нужно — сначала `unknown` + narrowing.
+- Типизируй: `props`, callback-подписи, данные API, Redux state/selectors.
+- Обрабатывай `null/undefined` через guard clauses (ранние возвраты).
+- Экспортируй типы/контракты через public API слайса (FSD), избегай deep-imports типов.

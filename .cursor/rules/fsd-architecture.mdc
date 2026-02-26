@@ -1,0 +1,38 @@
+---
+description: FSD architecture (layers, public API, import boundaries)
+globs: '**/*.{js,jsx,ts,tsx}'
+alwaysApply: true
+---
+
+# Feature-Sliced Design (FSD)
+
+## Layers and dependency direction
+Allowed direction only:
+`app -> processes -> pages -> widgets -> features -> entities -> shared`
+
+- A lower layer MUST NOT import from a higher layer.
+- Cross-slice imports MUST go through the slice public API (`index.ts` / `index.tsx`).
+
+## Public API only (no deep imports)
+- ✅ `import { LoginForm } from '@/features/auth-by-email'`
+- ❌ `import { LoginForm } from '@/features/auth-by-email/ui/LoginForm'`
+
+## Same-layer boundaries
+- Same-layer slices MUST NOT import each other directly (only via public API + documented exception).
+
+## Slice structure
+Each slice is a folder like `features/auth-by-email`, `entities/user`.
+Allowed segments: `ui/`, `model/`, `api/`, `lib/`, `config/`, `assets/`.
+
+## Placement rules
+- `shared/`: generic ui-kit, utils, base api, config (no business meaning)
+- `entities/`: domain objects (User/Product) + their ui/model/api
+- `features/`: user actions (login, add-to-cart)
+- `widgets/`: composed blocks (Header, Sidebar)
+- `pages/`: route composition, minimal logic
+- `processes/`: long flows across pages/features
+- `app/`: providers, store setup, app initialization
+
+## Next.js App Router guidance
+- Keep route files thin: compose `widgets/features/entities`.
+- Prefer Server Components; add `use client` only for leaf UI needing browser APIs.

@@ -1,0 +1,126 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 18px 0;
+  backdrop-filter: blur(10px);
+  background: rgba(246, 251, 255, 0.7);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
+}
+
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.brandMark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(119, 221, 231, 0.95), transparent 55%),
+    radial-gradient(circle at 70% 70%, rgba(66, 170, 255, 0.95), transparent 55%),
+    rgba(154, 206, 235, 0.3);
+  box-shadow: 0 10px 24px rgba(66, 170, 255, 0.18);
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.brandTitle {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+}
+
+.brandSubtitle {
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  color: var(--text-secondary);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(10, 30, 60, 0.06);
+}
+
+.navLink {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background-color 120ms ease;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  min-width: 280px;
+}
+
+.auth {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.authLink {
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: color 120ms ease;
+}
+
+.authSeparator {
+  opacity: 0.6;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navLink:hover {
+    background: rgba(66, 170, 255, 0.08);
+  }
+
+  .authLink:hover {
+    color: var(--text-primary);
+  }
+}
+
+@media (max-width: 980px) {
+  .nav {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .actions {
+    min-width: unset;
+  }
+
+  .auth {
+    display: none;
+  }
+}
+

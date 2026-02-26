@@ -1,0 +1,24 @@
+---
+description: React + Next.js App Router (RSC-first)
+globs: '**/*.{tsx,jsx}'
+alwaysApply: false
+---
+
+# React
+- Только функциональные компоненты; объявляй через `function Name (props) {}`.
+- Соблюдай Rules of Hooks (хуки только на верхнем уровне и только в React-функциях).
+- Выноси переиспользуемую логику в кастомные хуки.
+- Controlled components для форм.
+- `useEffect` используй только когда нужно; добавляй cleanup для подписок/таймеров.
+
+# Memoization
+- `useCallback` для функций, передаваемых в props, когда это влияет на ререндер.
+- `useMemo` только для реально дорогих вычислений.
+- `React.memo` применяй по необходимости.
+- Избегай inline-функций в render, если это создаёт лишние ререндеры.
+
+# Next.js App Router
+- Минимизируй `use client`: делай клиентскими только leaf-компоненты для Web API/интерактива.
+- Не делай data fetching в `useEffect` для страниц/виджетов; предпочитай RSC/SSR/Server Actions.
+- Клиентские “островки” оборачивай в `Suspense` с fallback.
+- Следуй документации Next.js по Data Fetching, Rendering и Routing.

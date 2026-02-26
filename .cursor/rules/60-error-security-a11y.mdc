@@ -1,0 +1,21 @@
+---
+description: Error handling, security, accessibility
+globs: '**/*.{ts,tsx,js,jsx}'
+alwaysApply: false
+---
+
+# Error handling
+- Приоритезируй ошибки и edge cases.
+- Обрабатывай невалидные состояния в начале (guard clauses), затем happy path.
+- Избегай лишних `else`: используй if-return.
+- Делай корректное логирование ошибок и user-friendly сообщения.
+- Ожидаемые ошибки в Server Actions моделируй как return values, где уместно.
+
+# Security
+- Санитайз пользовательский ввод (XSS).
+- `dangerouslySetInnerHTML` используй редко и только с санитайзом.
+
+# Accessibility (a11y)
+- Используй семантические HTML элементы.
+- Добавляй ARIA атрибуты только когда нужно.
+- Обеспечь навигацию с клавиатуры.

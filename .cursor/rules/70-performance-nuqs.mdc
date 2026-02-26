@@ -1,0 +1,16 @@
+---
+description: Performance, Web Vitals, nuqs
+globs: '**/*.{ts,tsx,js,jsx}'
+alwaysApply: false
+---
+
+# Performance Optimization
+- Минимизируй `use client`, `useEffect`, `useState`; предпочитай React Server Components (RSC).
+- Клиентские компоненты оборачивай в `Suspense` с fallback.
+- Используй динамическую загрузку для некритичных компонентов.
+- Оптимизируй изображения: WebP, размеры, lazy loading.
+- Используй route-based code splitting в Next.js.
+- Оптимизируй Web Vitals (LCP, CLS, FID).
+
+# URL search params
+- Для стейта в query params используй `nuqs`.

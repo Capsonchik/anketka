@@ -1,0 +1,11 @@
+---
+description: Forms and validation (controlled + RHF + Yup)
+globs: '**/*.{tsx,jsx}'
+alwaysApply: false
+---
+
+# Forms and Validation
+- Используй controlled components для form inputs.
+- Делай валидацию на клиенте и на сервере.
+- Для сложных форм предпочитай `react-hook-form`.
+- Для схем валидации предпочитай Yup.

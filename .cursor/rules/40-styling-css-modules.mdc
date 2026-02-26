@@ -1,0 +1,19 @@
+---
+description: UI and styling (CSS Modules)
+globs: '**/*.{tsx,jsx,css,scss,styl}'
+alwaysApply: false
+---
+
+# UI and Styling
+- Делай адаптивно, mobile-first.
+- Минимизируй глобальные стили; предпочитай scoped modules.
+
+# CSS Modules
+- Для компонентных стилей используй CSS Modules рядом с компонентом.
+- Для каждого компонента с кастомными стилями создавай `Component.module.css|scss|styl`.
+- Имена классов — по устойчивой схеме (BEM-подобно).
+- Никогда не используй `@apply`.
+
+# Colocation пример
+- `components/Button/Button.tsx`
+- `components/Button/Button.module.css`
