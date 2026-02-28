@@ -1,0 +1,87 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 16, 26, 0.42);
+  backdrop-filter: blur(10px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(10, 30, 60, 0.1);
+  box-shadow: 0 26px 68px rgba(18, 46, 90, 0.18);
+  padding: 18px 18px 16px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.form {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.labelText {
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--text-primary);
+}
+
+.input {
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(10, 30, 60, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0 12px;
+  font-weight: 750;
+  font-size: 14px;
+  outline: none;
+  letter-spacing: 2px;
+}
+
+.hint {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.error {
+  font-size: 12px;
+  font-weight: 750;
+  color: rgba(218, 60, 60, 0.92);
+}
+
+.actions {
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+

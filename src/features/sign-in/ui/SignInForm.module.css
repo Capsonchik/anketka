@@ -1,0 +1,131 @@
+.viewport {
+  overflow: hidden;
+  width: 100%;
+}
+
+.panelHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.panelTitle {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  color: var(--text-primary);
+}
+
+.panelSubtitle {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.track {
+  display: flex;
+  transform: translateX(0);
+  transition: transform 260ms ease, opacity 260ms ease;
+}
+
+.panel {
+  width: 100%;
+  flex: 0 0 100%;
+  padding: 10px;
+}
+
+.viewport[data-step='twoFactor'] .track {
+  transform: translateX(-100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    transition: none;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.labelText {
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--text-primary);
+}
+
+.input {
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(10, 30, 60, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0 12px;
+  font-weight: 750;
+  font-size: 14px;
+  outline: none;
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.input:focus {
+  border-color: rgba(66, 170, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(66, 170, 255, 0.15);
+}
+
+.passwordWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.eyeButton {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 32px;
+  width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(11, 18, 32, 0.6);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .eyeButton:hover {
+    background: rgba(11, 18, 32, 0.04);
+  }
+}
+
+.error {
+  font-size: 12px;
+  font-weight: 750;
+  color: rgba(218, 60, 60, 0.92);
+}
+
+.twoFactorForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.twoFactorActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 2px;
+}
+

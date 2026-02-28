@@ -25,7 +25,7 @@ export function LandingHeader () {
 
         <nav className={styles.nav} aria-label="Основное меню">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className={styles.navLink}>
+            <Link key={item.href} href={item.href} prefetch className={styles.navLink}>
               {item.label}
             </Link>
           ))}
@@ -36,13 +36,13 @@ export function LandingHeader () {
             Запросить демо
           </ButtonLink>
           <div className={styles.auth}>
-            <Link href="/functional" className={styles.authLink}>
+            <Link href="/login" prefetch className={styles.authLink}>
               Вход
             </Link>
             <span className={styles.authSeparator} aria-hidden="true">
               /
             </span>
-            <Link href="/company" className={styles.authLink}>
+            <Link href="/register" prefetch className={styles.authLink}>
               Регистрация
             </Link>
           </div>

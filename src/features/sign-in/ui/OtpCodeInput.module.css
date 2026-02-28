@@ -1,0 +1,35 @@
+.wrap {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+.cell {
+  height: 60px;
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(10, 30, 60, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  outline: none;
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.cell:focus {
+  border-color: rgba(66, 170, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(66, 170, 255, 0.15);
+}
+
+@media (max-width: 420px) {
+  .wrap {
+    gap: 8px;
+  }
+
+  .cell {
+    height: 48px;
+  }
+}
+
