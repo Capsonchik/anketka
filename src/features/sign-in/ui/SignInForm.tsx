@@ -1,8 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+import axiosMainRequest from '@/api-config/api-config'
+import { apiRoutes } from '@/api-config/api-routes'
+import type { AuthTokens } from '@/api-config/auth-tokens'
+import { writeAuthTokens } from '@/api-config/auth-tokens'
 import { Button } from '@/shared/ui'
 
 import { OtpCodeInput } from './OtpCodeInput'
@@ -10,12 +14,22 @@ import styles from './SignInForm.module.css'
 
 type Step = 'credentials' | 'twoFactor'
 
-function isValidCredentials (login: string, password: string) {
-  return login.trim() === 'admin' && password === 'admin'
-}
-
 function isValidTwoFactorCode (code: string) {
   return code.replaceAll(/\s/g, '') === '123456'
+}
+
+function getApiErrorMessage (err: unknown): string {
+  if (typeof err === 'object' && err) {
+    const response = (err as { response?: unknown }).response
+    if (typeof response === 'object' && response) {
+      const data = (response as { data?: unknown }).data
+      const detail = (data as { detail?: unknown } | undefined)?.detail
+      if (typeof detail === 'string' && detail.trim()) return detail
+    }
+  }
+
+  if (err instanceof Error && err.message) return err.message
+  return 'Не удалось войти. Проверьте данные и попробуйте ещё раз.'
 }
 
 export function SignInForm () {
@@ -24,6 +38,7 @@ export function SignInForm () {
 
   const [step, setStep] = useState<Step>('credentials')
   const [hasPasswordVisible, setHasPasswordVisible] = useState(false)
+  const pendingTokensRef = useRef<AuthTokens | null>(null)
 
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
@@ -33,29 +48,7 @@ export function SignInForm () {
 
   const canSubmit = useMemo(() => login.trim().length > 0 && password.length > 0, [login, password])
 
-  useEffect(() => {
-    if (step !== 'credentials') return
-    setTwoFactorCode('')
-    setTwoFactorError(null)
-    hasRedirectedRef.current = false
-  }, [step])
-
   const isTwoFactorSubmitDisabled = useMemo(() => twoFactorCode.length !== 6, [twoFactorCode])
-
-  useEffect(() => {
-    if (step !== 'twoFactor') return
-    if (twoFactorCode.length !== 6) return
-    if (hasRedirectedRef.current) return
-
-    if (!isValidTwoFactorCode(twoFactorCode)) {
-      setTwoFactorError('Неверный код')
-      return
-    }
-
-    hasRedirectedRef.current = true
-    router.replace('/dashboard')
-    router.refresh()
-  }, [router, step, twoFactorCode])
 
   return (
     <div className={styles.viewport} data-step={step}>
@@ -67,7 +60,7 @@ export function SignInForm () {
           </div>
           <form
             className={styles.form}
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault()
               setError(null)
 
@@ -76,12 +69,35 @@ export function SignInForm () {
                 return
               }
 
-              if (!isValidCredentials(login, password)) {
-                setError('Неверный логин/email или пароль. Мок: admin / admin')
+              if (!login.includes('@')) {
+                setError('Пока поддерживается только вход по email')
                 return
               }
 
-              setStep('twoFactor')
+              try {
+                const res = await axiosMainRequest.post(apiRoutes.auth.login, {
+                  email: login.trim(),
+                  password,
+                })
+
+                const tokens: AuthTokens | undefined = res?.data?.tokens
+                if (!tokens?.accessToken || !tokens?.refreshToken) {
+                  setError('Не удалось получить токены. Попробуйте ещё раз.')
+                  return
+                }
+
+                pendingTokensRef.current = {
+                  accessToken: tokens.accessToken,
+                  refreshToken: tokens.refreshToken,
+                }
+
+                setTwoFactorCode('')
+                setTwoFactorError(null)
+                hasRedirectedRef.current = false
+                setStep('twoFactor')
+              } catch (err: unknown) {
+                setError(getApiErrorMessage(err))
+              }
             }}
           >
             <label className={styles.label}>
@@ -144,6 +160,12 @@ export function SignInForm () {
                 return
               }
 
+              if (hasRedirectedRef.current) return
+              hasRedirectedRef.current = true
+
+              if (pendingTokensRef.current) {
+                writeAuthTokens(pendingTokensRef.current)
+              }
               router.replace('/dashboard')
               router.refresh()
             }}
@@ -161,7 +183,18 @@ export function SignInForm () {
             {twoFactorError ? <div className={styles.error}>{twoFactorError}</div> : null}
 
             <div className={styles.twoFactorActions}>
-              <Button type="button" variant="ghost" onClick={() => setStep('credentials')} fullWidth>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  pendingTokensRef.current = null
+                  hasRedirectedRef.current = false
+                  setTwoFactorCode('')
+                  setTwoFactorError(null)
+                  setStep('credentials')
+                }}
+                fullWidth
+              >
                 Назад
               </Button>
               <Button type="submit" variant="primary" disabled={isTwoFactorSubmitDisabled} fullWidth>

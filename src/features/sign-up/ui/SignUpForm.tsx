@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 
+import axiosMainRequest from '@/api-config/api-config'
+import { apiRoutes } from '@/api-config/api-routes'
 import { Button } from '@/shared/ui'
 
 import styles from './SignUpForm.module.css'
@@ -16,6 +18,20 @@ type FormValues = {
   phone: string
   password: string
   passwordConfirm: string
+}
+
+function getApiErrorMessage (err: unknown): string {
+  if (typeof err === 'object' && err) {
+    const response = (err as { response?: unknown }).response
+    if (typeof response === 'object' && response) {
+      const data = (response as { data?: unknown }).data
+      const detail = (data as { detail?: unknown } | undefined)?.detail
+      if (typeof detail === 'string' && detail.trim()) return detail
+    }
+  }
+
+  if (err instanceof Error && err.message) return err.message
+  return 'Не удалось зарегистрироваться. Попробуйте ещё раз.'
 }
 
 function normalizePhone (value: string) {
@@ -31,6 +47,7 @@ export function SignUpForm () {
 
   const [hasPasswordVisible, setHasPasswordVisible] = useState(false)
   const [hasPasswordConfirmVisible, setHasPasswordConfirmVisible] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
@@ -60,15 +77,30 @@ export function SignUpForm () {
       <div className={styles.header}>
         <div className={styles.title}>Регистрация</div>
         <div className={styles.subtitle}>
-          Поля со звёздочкой обязательны. После регистрации вы попадёте на главную.
+          Поля со звёздочкой обязательны. После регистрации вы попадёте на страницу входа.
         </div>
       </div>
 
       <form
         className={styles.form}
-        onSubmit={handleSubmit(async () => {
-          router.replace('/')
-          router.refresh()
+        onSubmit={handleSubmit(async (values) => {
+          setSubmitError(null)
+
+          try {
+            await axiosMainRequest.post(apiRoutes.auth.register, {
+              firstName: values.firstName,
+              lastName: values.lastName,
+              organization: values.organization || null,
+              email: values.email,
+              phone: values.phone,
+              password: values.password,
+            })
+
+            router.replace('/login')
+            router.refresh()
+          } catch (err: unknown) {
+            setSubmitError(getApiErrorMessage(err))
+          }
         })}
       >
         <div className={styles.grid}>
@@ -212,6 +244,8 @@ export function SignUpForm () {
             }
           />
         </div>
+
+        {submitError ? <div className={styles.error}>{submitError}</div> : null}
 
         <Button type="submit" variant="primary" disabled={!canSubmit} fullWidth>
           Создать аккаунт

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import styles from './AnketaServiceShell.module.css'
+import { ProfileInfo } from './ProfileInfo'
 
 const menuItems = [
   { href: '/dashboard', label: 'Дашборд' },
@@ -16,8 +17,7 @@ export function AnketaServiceShell ({ children }: { children: React.ReactNode })
         <div className={styles.profile}>
           <div className={styles.avatar} aria-hidden="true" />
           <div className={styles.profileText}>
-            <div className={styles.profileName}>Admin</div>
-            <div className={styles.profileMeta}>demo</div>
+            <ProfileInfo nameClassName={styles.profileName} metaClassName={styles.profileMeta} />
           </div>
         </div>
 

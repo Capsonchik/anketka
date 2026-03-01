@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
 
+import { AuthInit } from '@/app/providers'
+
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Anketka',
+  title: 'АНКЕТКА',
   description: 'Сервис анкетирования населения',
 }
 
@@ -14,7 +16,10 @@ export default function RootLayout ({
 }>) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        <AuthInit />
+        {children}
+      </body>
     </html>
   )
 }

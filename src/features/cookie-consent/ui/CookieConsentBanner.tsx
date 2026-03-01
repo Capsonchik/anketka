@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Button, Container } from '@/shared/ui'
 
@@ -35,12 +35,8 @@ function writeAccepted () {
 }
 
 export function CookieConsentBanner () {
-  const [consent, setConsent] = useState<ConsentState>('unknown')
+  const [consent, setConsent] = useState<ConsentState>(() => readConsent())
   const isVisible = useMemo(() => consent !== 'accepted', [consent])
-
-  useEffect(() => {
-    setConsent(readConsent())
-  }, [])
 
   if (!isVisible) return null
 
