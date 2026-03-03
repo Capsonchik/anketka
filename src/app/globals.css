@@ -85,3 +85,15 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+.titleH1 {
+  font-weight: 900;
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+
+.topTitle {
+  font-weight: 900;
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}

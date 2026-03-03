@@ -1,24 +1,53 @@
 .shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 260px 1fr;
+}
+
+.shell[data-sidebar='collapsed'] {
+  grid-template-columns: 86px 1fr;
 }
 
 .sidebar {
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 20px 16px;
+  padding: 14px 12px;
   background: rgba(255, 255, 255, 0.86);
   border-right: 1px solid rgba(10, 30, 60, 0.06);
   backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+}
+
+.collapseButton {
+  height: 34px;
+  width: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  color: rgba(11, 18, 32, 0.7);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shell[data-sidebar='collapsed'] .collapseButton {
+  width: 100%;
+}
+
+.sidebarBottom {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
 }
 
 .profile {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 10px;
+  padding: 10px 10px;
   border-radius: 18px;
   background:
     radial-gradient(circle at 30% 30%, rgba(119, 221, 231, 0.35), transparent 55%),
@@ -46,7 +75,7 @@
 }
 
 .profileName {
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: -0.3px;
   color: var(--text-primary);
 }
@@ -58,29 +87,44 @@
 }
 
 .nav {
-  margin-top: 16px;
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .navLink {
-  padding: 12px 12px;
-  border-radius: 16px;
-  font-weight: 800;
+  padding: 10px 10px;
+  border-radius: 14px;
+  font-weight: 650;
+  font-size: 13px;
   color: var(--text-primary);
   background: rgba(11, 18, 32, 0.02);
   border: 1px solid rgba(10, 30, 60, 0.06);
   transition: background-color 120ms ease, transform 120ms ease;
 }
 
+.navLinkText {
+  display: inline-flex;
+  align-items: center;
+}
+
+.shell[data-sidebar='collapsed'] .profileText {
+  display: none;
+}
+
+.shell[data-sidebar='collapsed'] .navLink {
+  padding: 10px 0;
+  justify-content: center;
+  text-align: center;
+}
+
 .content {
-  padding: 24px 26px;
+  padding: 10px;
 }
 
 .contentInner {
   width: 100%;
-  max-width: 1180px;
 }
 
 @media (hover: hover) and (pointer: fine) {

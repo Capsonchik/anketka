@@ -13,7 +13,7 @@ import styles from './SignUpForm.module.css'
 type FormValues = {
   firstName: string
   lastName: string
-  organization?: string
+  organization: string
   email: string
   phone: string
   password: string
@@ -90,7 +90,7 @@ export function SignUpForm () {
             await axiosMainRequest.post(apiRoutes.auth.register, {
               firstName: values.firstName,
               lastName: values.lastName,
-              organization: values.organization || null,
+              companyName: values.organization,
               email: values.email,
               phone: values.phone,
               password: values.password,
@@ -133,14 +133,15 @@ export function SignUpForm () {
           />
 
           <Field
-            label="Организация"
+            label="Компания"
+            requiredMark
             error={errors.organization?.message}
             input={
               <input
                 className={styles.input}
                 autoComplete="organization"
                 placeholder="ООО «Компания»"
-                {...register('organization')}
+                {...register('organization', { required: 'Введите название компании' })}
               />
             }
           />

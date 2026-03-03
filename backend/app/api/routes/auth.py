@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.security import (
@@ -15,8 +16,10 @@ from app.core.security import (
   verify_password,
 )
 from app.db.session import get_db
+from app.models.company import Company
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from app.models.user_role import UserRole
 from app.schemas.auth import (
   AuthResponse,
   AuthTokens,
@@ -24,6 +27,7 @@ from app.schemas.auth import (
   RefreshRequest,
   RegisterRequest,
 )
+from app.schemas.company import CompanyPublic
 from app.schemas.user import UserPublic
 
 
@@ -35,11 +39,18 @@ def _now_utc () -> datetime:
 
 
 def to_user_public (user: User) -> UserPublic:
+  company = user.company
+  if company is None:
+    company_public = CompanyPublic(id=user.company_id, name='—')
+  else:
+    company_public = CompanyPublic(id=company.id, name=company.name)
+
   return UserPublic(
     id=user.id,
     firstName=user.first_name,
     lastName=user.last_name,
-    organization=user.organization,
+    role=user.role.value if hasattr(user.role, 'value') else str(user.role),
+    company=company_public,
     email=user.email,
     phone=user.phone,
     createdAt=user.created_at,
@@ -83,10 +94,18 @@ async def register (payload: RegisterRequest, db: AsyncSession = Depends(get_db)
   if existing is not None:
     raise HTTPException(status_code=400, detail='User already exists')
 
+  company_res = await db.execute(select(Company).where(Company.name == payload.companyName))
+  company = company_res.scalar_one_or_none()
+  if company is None:
+    company = Company(name=payload.companyName)
+    db.add(company)
+    await db.flush()
+
   user = User(
     first_name=payload.firstName,
     last_name=payload.lastName,
-    organization=payload.organization,
+    role=UserRole.admin,
+    company_id=company.id,
     email=str(payload.email),
     phone=payload.phone,
     password_hash=hash_password(payload.password),
@@ -98,14 +117,15 @@ async def register (payload: RegisterRequest, db: AsyncSession = Depends(get_db)
   await _persist_refresh_token(db=db, user_id=user.id, refresh_token=refresh_token, jti=jti)
 
   await db.commit()
-  await db.refresh(user)
+  res_user = await db.execute(select(User).options(selectinload(User.company)).where(User.id == user.id))
+  user = res_user.scalar_one()
 
   return AuthResponse(user=to_user_public(user), tokens=tokens)
 
 
 @router.post('/login', response_model=AuthResponse)
 async def login (payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
-  res = await db.execute(select(User).where(User.email == payload.email))
+  res = await db.execute(select(User).options(selectinload(User.company)).where(User.email == payload.email))
   user = res.scalar_one_or_none()
   if user is None or not verify_password(payload.password, user.password_hash):
     raise HTTPException(status_code=400, detail='Invalid credentials')

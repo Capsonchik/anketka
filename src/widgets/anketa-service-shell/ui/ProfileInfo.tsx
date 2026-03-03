@@ -9,7 +9,11 @@ type UserMe = {
   id: string
   firstName: string
   lastName: string
-  organization: string | null
+  role: string
+  company: {
+    id: string
+    name: string
+  }
   email: string
   phone: string
   createdAt: string
@@ -41,7 +45,7 @@ export function ProfileInfo ({
   const [isLoading, setIsLoading] = useState(true)
 
   const name = useMemo(() => user?.firstName || '—', [user?.firstName])
-  const meta = useMemo(() => user?.organization || '—', [user?.organization])
+  const meta = useMemo(() => user?.company?.name || '—', [user?.company?.name])
 
   useEffect(() => {
     let isAlive = true

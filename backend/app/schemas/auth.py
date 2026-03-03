@@ -14,7 +14,7 @@ def validate_bcrypt_password (value: str) -> str:
 class RegisterRequest(BaseModel):
   firstName: str = Field(min_length=1, max_length=120)
   lastName: str = Field(min_length=1, max_length=120)
-  organization: str | None = Field(default=None, max_length=200)
+  companyName: str = Field(min_length=1, max_length=200)
   email: EmailStr
   phone: str = Field(min_length=5, max_length=32)
   password: str = Field(min_length=6, max_length=200)

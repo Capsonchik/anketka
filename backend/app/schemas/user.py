@@ -3,13 +3,16 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr
 
+from app.schemas.company import CompanyPublic
+
 
 class UserPublic(BaseModel):
   id: UUID
   firstName: str
   lastName: str
-  organization: str | None
+  role: str
+  company: CompanyPublic
   email: EmailStr
-  phone: str
+  phone: str | None
   createdAt: datetime
 

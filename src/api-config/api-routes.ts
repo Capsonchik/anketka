@@ -1,6 +1,7 @@
 export enum ROUTES {
   auth = 'auth',
   users = 'users',
+  team = 'team',
 }
 
 export const apiRoutes = {
@@ -12,5 +13,8 @@ export const apiRoutes = {
   },
   users: {
     me: `${ROUTES.users}/me`,
+  },
+  team: {
+    users: `${ROUTES.team}/users`,
   },
 } as const
