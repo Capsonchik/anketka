@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { readAuthTokens } from '@/api-config/auth-tokens'
@@ -8,20 +8,17 @@ import { readAuthTokens } from '@/api-config/auth-tokens'
 export function RequireAuth ({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
-  const [hasTokens, setHasTokens] = useState<boolean | null>(null)
+  const tokens = readAuthTokens()
+  const hasTokens = Boolean(tokens?.accessToken && tokens?.refreshToken)
 
   useEffect(() => {
-    const tokens = readAuthTokens()
-    const ok = Boolean(tokens?.accessToken && tokens?.refreshToken)
-    setHasTokens(ok)
-
-    if (!ok) {
+    if (!hasTokens) {
       router.replace('/login')
       router.refresh()
     }
-  }, [router])
+  }, [hasTokens, router])
 
-  if (hasTokens !== true) return null
+  if (!hasTokens) return null
   return children
 }
 

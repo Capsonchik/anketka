@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { RequireAuth } from '@/app/providers'
+import { RequireAuthNoSSR } from '@/app/providers'
 import { AnketaServiceShell } from '@/widgets/anketa-service-shell'
 
 export const metadata: Metadata = {
@@ -14,8 +14,8 @@ export default function AnketaServiceLayout ({
   children: React.ReactNode
 }>) {
   return (
-    <RequireAuth>
+    <RequireAuthNoSSR>
       <AnketaServiceShell>{children}</AnketaServiceShell>
-    </RequireAuth>
+    </RequireAuthNoSSR>
   )
 }

@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field
 
 from app.models.user_role import UserRole
+from app.schemas.company import CompanyPublic
 
 
 class TeamUserItem(BaseModel):
@@ -11,6 +12,7 @@ class TeamUserItem(BaseModel):
   firstName: str
   lastName: str
   email: EmailStr
+  company: CompanyPublic
   role: UserRole
   note: str | None
   createdAt: datetime
@@ -38,5 +40,11 @@ class TeamUserDetailsResponse(BaseModel):
   password: str | None = Field(
     default=None,
     description='Временный пароль (только для администраторов, прототип). В проде хранить/отдавать пароль нельзя.',
+  )
+
+
+class TeamResetPasswordResponse(BaseModel):
+  password: str = Field(
+    description='Новый временный пароль (только для администраторов, прототип). В проде хранить/отдавать пароль нельзя.',
   )
 

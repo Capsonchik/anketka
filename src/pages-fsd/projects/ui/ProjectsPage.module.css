@@ -1,0 +1,143 @@
+.page {
+  display: grid;
+  gap: 14px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.addIconButton {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.subTitle {
+  margin-top: -2px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.filters {
+  display: grid;
+  gap: 10px;
+}
+
+.input {
+  width: 100%;
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.error {
+  color: rgba(218, 60, 60, 0.92);
+  font-weight: 700;
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 1px 0 rgba(10, 30, 60, 0.04);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardTitle {
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  font-size: 16px;
+}
+
+.cardDescription {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.metaList {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.metaRow {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.metaLabel {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.metaValue {
+  color: var(--text-primary);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 34px 12px;
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 16px;
+}
+
+@media (max-width: 1280px) {
+  .list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .list {
+    grid-template-columns: 1fr;
+  }
+}
+

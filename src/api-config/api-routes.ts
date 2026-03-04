@@ -2,6 +2,7 @@ export enum ROUTES {
   auth = 'auth',
   users = 'users',
   team = 'team',
+  projects = 'projects',
 }
 
 export const apiRoutes = {
@@ -16,5 +17,10 @@ export const apiRoutes = {
   },
   team: {
     users: `${ROUTES.team}/users`,
+  },
+  projects: {
+    projects: `${ROUTES.projects}`,
+    addressbookUpload: (projectId: string) => `${ROUTES.projects}/${projectId}/addressbook/upload`,
+    addressbookClone: (projectId: string) => `${ROUTES.projects}/${projectId}/addressbook/clone`,
   },
 } as const

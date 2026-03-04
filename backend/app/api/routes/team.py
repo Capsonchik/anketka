@@ -4,12 +4,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.models.user import User
 from app.models.user_role import UserRole
+from app.schemas.company import CompanyPublic
 from app.schemas.team import (
   TeamCreateUserRequest,
   TeamCreateUserResponse,
@@ -23,11 +25,18 @@ router = APIRouter()
 
 
 def to_team_user_item (user: User) -> TeamUserItem:
+  company = user.company
+  if company is None:
+    company_public = CompanyPublic(id=user.company_id, name='—')
+  else:
+    company_public = CompanyPublic(id=company.id, name=company.name)
+
   return TeamUserItem(
     id=user.id,
     firstName=user.first_name,
     lastName=user.last_name,
     email=user.email,
+    company=company_public,
     role=user.role,
     note=user.note,
     createdAt=user.created_at,
@@ -53,7 +62,12 @@ async def list_users (
 ) -> TeamUsersResponse:
   company_id = current_user.company_id
 
-  stmt = select(User).where(User.company_id == company_id).order_by(User.created_at.desc())
+  stmt = (
+    select(User)
+    .options(selectinload(User.company))
+    .where(User.company_id == company_id)
+    .order_by(User.created_at.desc())
+  )
   if role is not None:
     stmt = stmt.where(User.role == role)
   if q:
@@ -105,7 +119,8 @@ async def create_user (
   )
   db.add(user)
   await db.commit()
-  await db.refresh(user)
+  res = await db.execute(select(User).options(selectinload(User.company)).where(User.id == user.id))
+  user = res.scalar_one()
 
   return TeamCreateUserResponse(user=to_team_user_item(user), temporaryPassword=temporary_password)
 
@@ -122,7 +137,11 @@ async def get_user (
   current_user: User = Depends(get_current_user),
 ) -> TeamUserDetailsResponse:
   company_id = current_user.company_id
-  res = await db.execute(select(User).where(User.id == user_id, User.company_id == company_id))
+  res = await db.execute(
+    select(User)
+    .options(selectinload(User.company))
+    .where(User.id == user_id, User.company_id == company_id),
+  )
   user = res.scalar_one_or_none()
   if user is None:
     raise HTTPException(status_code=404, detail='Пользователь не найден')

@@ -49,8 +49,6 @@ export function ProfileInfo ({
 
   useEffect(() => {
     let isAlive = true
-    setIsLoading(true)
-    setError(null)
 
     axiosMainRequest
       .get<UserMe>(apiRoutes.users.me)

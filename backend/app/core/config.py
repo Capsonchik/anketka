@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
   api_v1_prefix: str = '/api/v1'
   users_schema: str = 'users'
+  projects_schema: str = 'projects'
 
   @property
   def database_url_async(self) -> str:

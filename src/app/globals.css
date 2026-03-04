@@ -11,6 +11,17 @@
   --border: rgba(10, 30, 60, 0.08);
   --text-primary: #0b1220;
   --text-secondary: rgba(11, 18, 32, 0.68);
+
+  --rs-primary-50: #f2faff;
+  --rs-primary-100: #d1edff;
+  --rs-primary-200: #addeff;
+  --rs-primary-300: #8aceff;
+  --rs-primary-400: #66bdff;
+  --rs-primary-500: #42aaff;
+  --rs-primary-600: #2f98f5;
+  --rs-primary-700: #1b81e0;
+  --rs-primary-800: #0a66c2;
+  --rs-primary-900: #004a99;
 }
 
 @font-face {

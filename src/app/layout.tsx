@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
+import { CustomProvider } from 'rsuite'
 
 import { AuthInit } from '@/app/providers'
+import  ruRU  from 'rsuite/locales/ru_RU'
 
+import 'rsuite/dist/rsuite-no-reset.min.css'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -17,8 +20,11 @@ export default function RootLayout ({
   return (
     <html lang="ru">
       <body>
-        <AuthInit />
-        {children}
+        <CustomProvider locale={ruRU}>
+          <AuthInit />
+          {children}
+        </CustomProvider>
+        
       </body>
     </html>
   )

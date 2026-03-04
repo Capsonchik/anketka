@@ -13,7 +13,8 @@
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-hook-form": "^7.71.2"
+    "react-hook-form": "^7.71.2",
+    "rsuite": "^6.1.2"
   },
   "devDependencies": {
     "@types/node": "^20",

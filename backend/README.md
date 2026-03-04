@@ -34,6 +34,13 @@ docker compose up --build
 - `alembic upgrade head`
 - запуск `uvicorn` с `--reload`
 
+### Создать компанию SERVEY-ALL и присвоить всем пользователям
+Если нужно быстро “свести” всех существующих пользователей в одну компанию (например, в базе сейчас ровно 2 пользователя), запусти:
+
+```bash
+docker compose exec backend python scripts/assign_company_servey_all.py
+```
+
 ### Примеры запросов
 Регистрация:
 
