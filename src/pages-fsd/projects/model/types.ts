@@ -40,3 +40,10 @@ export type TeamUsersResponse = {
   items: TeamUserItem[]
 }
 
+export type Role = 'admin' | 'coordinator' | 'manager'
+
+export type MeResponse = {
+  id: string
+  role: Role
+}
+

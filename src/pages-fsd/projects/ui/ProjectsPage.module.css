@@ -55,6 +55,16 @@
   align-items: stretch;
 }
 
+.cardWrapper {
+  position: relative;
+}
+
+.cardLink {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
 .card {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
@@ -75,7 +85,7 @@
 }
 
 .cardTitle {
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.2px;
   font-size: 16px;
 }
@@ -110,8 +120,28 @@
 
 .metaValue {
   color: var(--text-primary);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.45;
+}
+
+.deleteButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.85);
+  color: rgba(218, 60, 60, 0.92);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.deleteButton:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .emptyState {

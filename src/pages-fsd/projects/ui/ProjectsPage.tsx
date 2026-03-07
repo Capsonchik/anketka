@@ -8,7 +8,7 @@ import { apiRoutes } from '@/api-config/api-routes'
 import { Button } from '@/shared/ui'
 
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
-import type { CreateProjectResponse, ProjectsResponse, TeamUsersResponse, ProjectItem, TeamUserItem } from '../model/types'
+import type { CreateProjectResponse, ProjectsResponse, TeamUsersResponse, ProjectItem, TeamUserItem, MeResponse, Role } from '../model/types'
 import { ProjectCreateModal, type CreateProjectFormState } from './ProjectCreateModal'
 import { ProjectCard } from './ProjectCard'
 import styles from './ProjectsPage.module.css'
@@ -25,10 +25,15 @@ export function ProjectsPage () {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [myRole, setMyRole] = useState<Role | null>(null)
+
   const [search, setSearch] = useState('')
 
   const [managers, setManagers] = useState<TeamUserItem[]>([])
   const [managersError, setManagersError] = useState<string | null>(null)
+
+  const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -91,7 +96,17 @@ export function ProjectsPage () {
     }
   }
 
+  async function loadMe () {
+    try {
+      const res = await axiosMainRequest.get<MeResponse>(apiRoutes.users.me)
+      setMyRole(res.data.role ?? null)
+    } catch {
+      setMyRole(null)
+    }
+  }
+
   useEffect(() => {
+    loadMe()
     loadManagers()
     loadProjects()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,6 +122,26 @@ export function ProjectsPage () {
 
   const isEmpty = !isLoading && !error && projects.length === 0 && !hasFilters
   const isNoResults = !isLoading && !error && projects.length === 0 && hasFilters
+
+  const isAdmin = myRole === 'admin'
+
+  async function submitDelete (project: ProjectItem) {
+    if (!isAdmin) return
+    setDeleteError(null)
+
+    const ok = window.confirm(`Удалить проект «${project.name}»? Данные проекта будут удалены без возможности восстановления.`)
+    if (!ok) return
+
+    setDeleteProjectId(project.id)
+    try {
+      await axiosMainRequest.delete(apiRoutes.projects.project(project.id))
+      await loadProjects()
+    } catch (err: unknown) {
+      setDeleteError(getApiErrorMessage(err))
+    } finally {
+      setDeleteProjectId(null)
+    }
+  }
 
   async function submitCreate () {
     setSubmitError(null)
@@ -198,6 +233,7 @@ export function ProjectsPage () {
       <div className={styles.subTitle}>Создавайте и управляйте проектами, сроками и ответственными.</div>
 
       {managersError ? <div className={styles.hint}>Менеджеры: {managersError}</div> : null}
+      {deleteError ? <div className={styles.error}>Удаление: {deleteError}</div> : null}
 
       {isEmpty ? (
         <div className={styles.emptyState}>
@@ -224,7 +260,13 @@ export function ProjectsPage () {
 
           <div className={styles.list}>
             {projects.map((p) => (
-              <ProjectCard key={p.id} project={p} />
+              <ProjectCard
+                key={p.id}
+                project={p}
+                isAdmin={isAdmin}
+                isDeleting={deleteProjectId === p.id}
+                onDelete={() => submitDelete(p)}
+              />
             ))}
           </div>
         </>

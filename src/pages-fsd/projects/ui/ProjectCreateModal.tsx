@@ -106,22 +106,22 @@ export function ProjectCreateModal ({
           </Field>
 
           {form.addressbookMode === 'uploadNew' ? (
-            <div style={{ display: 'grid', gap: 12, padding: 12, border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10 }}>
+            <div style={{ display: 'grid', gap: 12 }}>
               <Field label="Загрузить Excel *">
                 <input
                   type="file"
-                  accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                  accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                   onChange={(e) => onChange({ addressbookFile: e.target.files?.[0] ?? null })}
                 />
               </Field>
 
-              <div style={{ fontSize: 12, fontWeight: 800 }}>Шаблон адресной программы</div>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>Шаблон адресной программы</div>
               <TemplateTable />
             </div>
           ) : null}
 
           {form.addressbookMode === 'fromProject' ? (
-            <div style={{ display: 'grid', gap: 12, padding: 12, border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10 }}>
+            <div style={{ display: 'grid', gap: 12 }}>
               <Field label="Проект-источник *">
                 <SelectPicker
                   value={form.addressbookSourceProjectId}
@@ -173,7 +173,7 @@ function TemplateTable () {
   const headerStyle: React.CSSProperties = {
     textAlign: 'left',
     fontSize: 12,
-    fontWeight: 800,
+    fontWeight: 700,
     padding: '8px 10px',
     borderBottom: '1px solid rgba(0,0,0,0.08)',
     whiteSpace: 'nowrap',
@@ -188,53 +188,37 @@ function TemplateTable () {
 
   const rows = [
     {
-      id: '1',
-      shops_brand_id: '2',
-      code: '1',
       name: 'ПОДРУЖКА',
       address: 'ул.Ленина',
-      region: '77',
+      region: 'Московская область',
       city: 'Москва',
-      concat: '1_Точка 1_ул.Ленина',
     },
     {
-      id: '2',
-      shops_brand_id: '2',
-      code: '2',
       name: 'ПОДРУЖКА',
       address: 'ул.Мира',
-      region: '77',
+      region: 'Московская область',
       city: 'Москва',
-      concat: 'Москва, 2_Подружка 2_ул.Мира',
     },
   ]
 
   return (
     <div style={{ overflowX: 'auto', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10 }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 920 }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640 }}>
         <thead>
           <tr>
-            <th style={headerStyle}>id</th>
-            <th style={headerStyle}>shops_brand_id</th>
-            <th style={headerStyle}>code</th>
             <th style={headerStyle}>name</th>
             <th style={headerStyle}>address</th>
             <th style={headerStyle}>region</th>
             <th style={headerStyle}>city</th>
-            <th style={headerStyle}>concat</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td style={cellStyle}>{r.id}</td>
-              <td style={cellStyle}>{r.shops_brand_id}</td>
-              <td style={cellStyle}>{r.code}</td>
+          {rows.map((r, idx) => (
+            <tr key={idx}>
               <td style={cellStyle}>{r.name}</td>
               <td style={cellStyle}>{r.address}</td>
               <td style={cellStyle}>{r.region}</td>
               <td style={cellStyle}>{r.city}</td>
-              <td style={cellStyle}>{r.concat}</td>
             </tr>
           ))}
         </tbody>
