@@ -1,0 +1,199 @@
+.sectionHeader {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.filters {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 10px;
+}
+
+.table {
+  margin-top: 12px;
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(10, 20, 35, 0.7);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  vertical-align: top;
+  font-size: 13px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  color: rgba(10, 20, 35, 0.75);
+}
+
+.rowActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.iconButton {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 1);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.iconButtonDanger {
+  border-color: rgba(218, 60, 60, 0.35);
+  color: rgba(218, 60, 60, 0.95);
+}
+
+.iconButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hint {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.error {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(218, 60, 60, 0.92);
+}
+
+.success {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(20, 140, 90, 0.92);
+}
+
+.fileInput {
+  display: none;
+}
+
+.importSampleWrap {
+  display: grid;
+  gap: 10px;
+}
+
+.importNote {
+  font-size: 13px;
+  color: rgba(10, 20, 35, 0.78);
+  line-height: 1.55;
+}
+
+.importTableWrap {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  overflow: auto;
+  background: rgba(255, 255, 255, 1);
+}
+
+.importTable {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 820px;
+}
+
+.importTh {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(10, 20, 35, 0.7);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+}
+
+.importThTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(10, 20, 35, 0.82);
+  line-height: 1.2;
+}
+
+.importThKey {
+  margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  color: rgba(10, 20, 35, 0.58);
+}
+
+.importTd {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.fileLine {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fileName {
+  font-size: 12px;
+  color: rgba(10, 20, 35, 0.7);
+}
+
+.importDetails {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.errorList {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.errorLine {
+  font-size: 12px;
+  color: rgba(10, 20, 35, 0.8);
+}
+

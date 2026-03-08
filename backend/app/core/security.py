@@ -31,7 +31,7 @@ def _now_utc () -> datetime:
   return datetime.now(timezone.utc)
 
 
-def create_access_token (*, subject: str) -> str:
+def create_access_token (*, subject: str, actor: str | None = None) -> str:
   now = _now_utc()
   exp = now + timedelta(minutes=settings.access_token_expire_minutes)
   payload: dict[str, Any] = {
@@ -40,10 +40,12 @@ def create_access_token (*, subject: str) -> str:
     'iat': int(now.timestamp()),
     'exp': int(exp.timestamp()),
   }
+  if actor:
+    payload['actor'] = actor
   return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALG)
 
 
-def create_refresh_token (*, subject: str) -> tuple[str, str]:
+def create_refresh_token (*, subject: str, actor: str | None = None) -> tuple[str, str]:
   now = _now_utc()
   exp = now + timedelta(days=settings.refresh_token_expire_days)
   jti = str(uuid4())
@@ -54,6 +56,8 @@ def create_refresh_token (*, subject: str) -> tuple[str, str]:
     'iat': int(now.timestamp()),
     'exp': int(exp.timestamp()),
   }
+  if actor:
+    payload['actor'] = actor
   token = jwt.encode(payload, settings.secret_key, algorithm=JWT_ALG)
   return token, jti
 

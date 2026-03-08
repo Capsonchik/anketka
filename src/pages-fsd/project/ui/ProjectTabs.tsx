@@ -1,6 +1,6 @@
 import styles from './ProjectPage.module.css'
 
-export type ProjectTabKey = 'overview' | 'addressbook' | 'checklists' | 'settings'
+export type ProjectTabKey = 'overview' | 'addressbook' | 'checklists' | 'surveys' | 'assignments' | 'settings'
 
 export function ProjectTabs ({
   value,
@@ -23,6 +23,12 @@ export function ProjectTabs ({
       </TabButton>
       <TabButton active={value === 'checklists'} onClick={() => onChange('checklists')}>
         Чек-листы <span className={styles.badge}>{checklistsCount}</span>
+      </TabButton>
+      <TabButton active={value === 'surveys'} onClick={() => onChange('surveys')}>
+        Анкеты
+      </TabButton>
+      <TabButton active={value === 'assignments'} onClick={() => onChange('assignments')}>
+        Назначения
       </TabButton>
       <TabButton active={value === 'settings'} onClick={() => onChange('settings')}>
         Настройки

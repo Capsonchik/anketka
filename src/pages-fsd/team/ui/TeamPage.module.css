@@ -12,7 +12,7 @@
 .subTitle {
   margin-top: 8px;
   color: var(--text-secondary);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.7;
 }
 
@@ -24,7 +24,7 @@
   background: rgba(255, 255, 255, 0.75);
   color: rgba(11, 18, 32, 0.78);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -55,20 +55,20 @@
 .hint {
   margin-top: 10px;
   color: var(--text-secondary);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .error {
   margin-top: 10px;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
   color: rgba(218, 60, 60, 0.92);
 }
 
 .success {
   margin-top: 10px;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
   color: rgba(20, 140, 90, 0.92);
 }
 

@@ -1,0 +1,32 @@
+---
+description: Типографика: не использовать слишком жирные font-weight
+globs: src/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# Типографика: font-weight
+
+- **Не использовать `font-weight` выше 600** в интерфейсе (CSS/inline styles).
+- Базовый диапазон:
+  - **500**: обычный текст/описания/вторичные подписи
+  - **600**: заголовки, акценты, кнопки/лейблы
+- Исключения (700+) — только по явному запросу/макету.
+
+## Примеры
+
+```css
+/* ❌ BAD */
+.title { font-weight: 800; }
+
+/* ✅ GOOD */
+.title { font-weight: 600; }
+.desc { font-weight: 500; }
+```
+
+```tsx
+// ❌ BAD
+<span style={{ fontWeight: 800 }}>...</span>
+
+// ✅ GOOD
+<span style={{ fontWeight: 600 }}>...</span>
+```

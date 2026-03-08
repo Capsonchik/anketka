@@ -3,6 +3,11 @@ export enum ROUTES {
   users = 'users',
   team = 'team',
   projects = 'projects',
+  surveys = 'surveys',
+  auditors = 'auditors',
+  priceMonitoring = 'price-monitoring',
+  auditorAuth = 'auditor-auth',
+  auditor = 'auditor',
 }
 
 export const apiRoutes = {
@@ -35,5 +40,46 @@ export const apiRoutes = {
     pointCatalog: (projectId: string, pointId: string) => `${ROUTES.projects}/${projectId}/points/${pointId}/catalog`,
     refRegions: `${ROUTES.projects}/refs/regions`,
     refCities: `${ROUTES.projects}/refs/cities`,
+    projectSurveys: (projectId: string) => `${ROUTES.projects}/${projectId}/surveys`,
+    projectSurvey: (projectId: string, surveyId: string) => `${ROUTES.projects}/${projectId}/surveys/${surveyId}`,
+    projectSurveyAuditors: (projectId: string, surveyId: string) => `${ROUTES.projects}/${projectId}/surveys/${surveyId}/auditors`,
+    projectSurveyAuditor: (projectId: string, surveyId: string, auditorId: string) =>
+      `${ROUTES.projects}/${projectId}/surveys/${surveyId}/auditors/${auditorId}`,
+    projectSurveyTestInvite: (projectId: string, surveyId: string) => `${ROUTES.projects}/${projectId}/surveys/${surveyId}/invites/test`,
+    projectSurveyAuditorInvite: (projectId: string, surveyId: string, auditorId: string) =>
+      `${ROUTES.projects}/${projectId}/surveys/${surveyId}/auditors/${auditorId}/invite`,
+  },
+  surveys: {
+    surveys: `${ROUTES.surveys}`,
+    survey: (surveyId: string) => `${ROUTES.surveys}/${surveyId}`,
+    surveyBuilder: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/builder`,
+    surveyProjects: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/projects`,
+    surveyApplyTemplate: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/apply-template`,
+    surveyQuestion: (surveyId: string, questionId: string) => `${ROUTES.surveys}/${surveyId}/questions/${questionId}`,
+  },
+  auditors: {
+    auditors: `${ROUTES.auditors}`,
+    auditor: (auditorId: string) => `${ROUTES.auditors}/${auditorId}`,
+    import: `${ROUTES.auditors}/import`,
+    password: (auditorId: string) => `${ROUTES.auditors}/${auditorId}/password`,
+  },
+  public: {
+    pa: (token: string) => `public/pa/${token}`,
+    paOptions: (token: string) => `public/pa/${token}/options`,
+  },
+  priceMonitoring: {
+    stats: `${ROUTES.priceMonitoring}/stats`,
+    attempts: `${ROUTES.priceMonitoring}/attempts`,
+    attempt: (attemptId: string) => `${ROUTES.priceMonitoring}/attempts/${attemptId}`,
+  },
+  auditorAuth: {
+    login: `${ROUTES.auditorAuth}/login`,
+    refresh: `${ROUTES.auditorAuth}/refresh`,
+    logout: `${ROUTES.auditorAuth}/logout`,
+  },
+  auditor: {
+    me: `${ROUTES.auditor}/me`,
+    assignments: `${ROUTES.auditor}/assignments`,
+    assignmentStatus: (projectId: string, surveyId: string) => `${ROUTES.auditor}/assignments/${projectId}/${surveyId}/status`,
   },
 } as const

@@ -9,7 +9,9 @@ import { Button } from '@/shared/ui'
 
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
 import type { CreateUserResponse, MeResponse, Role, TeamUser, TeamUserDetailsResponse, TeamUsersResponse } from '../model/types'
+import { TeamAuditorsTab } from './TeamAuditorsTab'
 import { TeamCreateUserModal, type CreateUserFormState } from './TeamCreateUserModal'
+import { TeamTabs, type TeamTabKey } from './TeamTabs'
 import { TeamUserCard } from './TeamUserCard'
 import { TeamUserDetailsModal } from './TeamUserDetailsModal'
 import styles from './TeamPage.module.css'
@@ -24,6 +26,8 @@ export function TeamPage () {
 
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all')
+
+  const [tab, setTab] = useState<TeamTabKey>('users')
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -182,67 +186,75 @@ export function TeamPage () {
     <div className={styles.page}>
       <div className={styles.headerRow}>
         <h1 className="titleH1">Команда</h1>
-        <button
-          type="button"
-          className={styles.addIconButton}
-          aria-label="Добавить участника"
-          onClick={() => {
-            setSubmitError(null)
-            setSubmitSuccess(null)
-            setIsModalOpen(true)
-          }}
-        >
-          +
-        </button>
+        {tab === 'users' ? (
+          <button
+            type="button"
+            className={styles.addIconButton}
+            aria-label="Добавить участника"
+            onClick={() => {
+              setSubmitError(null)
+              setSubmitSuccess(null)
+              setIsModalOpen(true)
+            }}
+          >
+            +
+          </button>
+        ) : null}
       </div>
 
       <div className={styles.subTitle}>Управляйте участниками компании, их ролями и доступами.</div>
 
-      {isEmpty ? (
-        <div className={styles.emptyState}>
-          <Button type="button" variant="primary" onClick={() => setIsModalOpen(true)}>
-            Добавить
-          </Button>
-        </div>
+      <TeamTabs value={tab} onChange={setTab} />
+
+      {tab === 'users' ? (
+        isEmpty ? (
+          <div className={styles.emptyState}>
+            <Button type="button" variant="primary" onClick={() => setIsModalOpen(true)}>
+              Добавить
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className={styles.filters}>
+              <Input
+                size='sm'
+                className={styles.input}
+                value={search}
+                onChange={(value) => setSearch(String(value ?? ''))}
+                placeholder="Поиск по имени, фамилии или почте…"
+                aria-label="Поиск"
+              />
+              <SelectPicker
+                size='sm'
+                className={styles.select}
+                value={roleFilter}
+                onChange={(value) => setRoleFilter((value as Role | 'all') ?? 'all')}
+                aria-label="Фильтр по роли"
+                cleanable={false}
+                searchable={false}
+                block
+                data={[
+                  { label: 'Все роли', value: 'all' },
+                  { label: 'Админ', value: 'admin' },
+                  { label: 'Координатор', value: 'coordinator' },
+                  { label: 'Менеджер', value: 'manager' },
+                ]}
+              />
+            </div>
+
+            {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
+            {error ? <div className={styles.error}>{error}</div> : null}
+            {isNoResults ? <div className={styles.hint}>Ничего не найдено</div> : null}
+
+            <div className={styles.grid}>
+              {users.map((u) => (
+                <TeamUserCard key={u.id} user={u} onClick={() => openDetails(u.id)} />
+              ))}
+            </div>
+          </>
+        )
       ) : (
-        <>
-          <div className={styles.filters}>
-            <Input
-              size='sm'
-              className={styles.input}
-              value={search}
-              onChange={(value) => setSearch(String(value ?? ''))}
-              placeholder="Поиск по имени, фамилии или почте…"
-              aria-label="Поиск"
-            />
-            <SelectPicker
-              size='sm'
-              className={styles.select}
-              value={roleFilter}
-              onChange={(value) => setRoleFilter((value as Role | 'all') ?? 'all')}
-              aria-label="Фильтр по роли"
-              cleanable={false}
-              searchable={false}
-              block
-              data={[
-                { label: 'Все роли', value: 'all' },
-                { label: 'Админ', value: 'admin' },
-                { label: 'Координатор', value: 'coordinator' },
-                { label: 'Менеджер', value: 'manager' },
-              ]}
-            />
-          </div>
-
-          {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
-          {error ? <div className={styles.error}>{error}</div> : null}
-          {isNoResults ? <div className={styles.hint}>Ничего не найдено</div> : null}
-
-          <div className={styles.grid}>
-            {users.map((u) => (
-              <TeamUserCard key={u.id} user={u} onClick={() => openDetails(u.id)} />
-            ))}
-          </div>
-        </>
+        <TeamAuditorsTab isAdmin={myRole === 'admin'} />
       )}
 
       <TeamUserDetailsModal

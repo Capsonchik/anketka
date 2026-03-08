@@ -14,5 +14,15 @@ from app.models.ref_product import RefProduct  # noqa: E402,F401
 from app.models.ref_region import RefRegion  # noqa: E402,F401
 from app.models.shop_chain import ShopChain  # noqa: E402,F401
 from app.models.shop_point import ShopPoint  # noqa: E402,F401
+from app.models.survey import Survey  # noqa: E402,F401
+from app.models.project_survey import ProjectSurvey  # noqa: E402,F401
+from app.models.auditor import Auditor  # noqa: E402,F401
+from app.models.auditor_refresh_token import AuditorRefreshToken  # noqa: E402,F401
+from app.models.project_survey_auditor import ProjectSurveyAuditor  # noqa: E402,F401
+from app.models.survey_page import SurveyPage  # noqa: E402,F401
+from app.models.survey_question import SurveyQuestion  # noqa: E402,F401
+from app.models.survey_question_option import SurveyQuestionOption  # noqa: E402,F401
+from app.models.survey_invite import SurveyInvite  # noqa: E402,F401
+from app.models.survey_attempt import SurveyAttempt  # noqa: E402,F401
 from app.models.user import User  # noqa: E402,F401
 

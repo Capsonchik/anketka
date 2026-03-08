@@ -1,0 +1,249 @@
+.page {
+  display: grid;
+  gap: 14px;
+  height: 100%;
+  grid-template-rows: auto auto 1fr;
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.headerRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.subTitle {
+  margin-top: -2px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.projectsRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.projectPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 1);
+  color: rgba(0, 0, 0, 0.78);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.projectPill:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.surveyTitle {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.error {
+  color: rgba(218, 60, 60, 0.92);
+  font-weight: 600;
+}
+
+.templatePick {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.templatePickBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;
+  overflow: hidden;
+}
+
+.templatePickFooter {
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+}
+
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 1080px;
+}
+
+.templateCard {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 1);
+  padding: 18px 18px;
+  display: grid;
+  gap: 12px;
+  cursor: pointer;
+  height: min(520px, 58vh);
+}
+
+.templateCardSelected {
+  border-color: rgba(0, 0, 0, 0.22);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.templateTitle {
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  font-size: 16px;
+}
+
+.templateDescription {
+  color: var(--text-secondary);
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.templateSteps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.templateMeta {
+  display: grid;
+  gap: 6px;
+}
+
+.templateMetaTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.templateHighlights {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.footerRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 860px;
+}
+
+.th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.td {
+  font-size: 13px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+}
+
+.tdWrap {
+  font-size: 13px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  white-space: pre-wrap;
+}
+
+.rowActions {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.iconButton {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.iconButtonDanger {
+  color: rgba(218, 60, 60, 0.92);
+}
+
+.iconButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.78);
+}
+
+@media (max-width: 960px) {
+  .templateGrid {
+    grid-template-columns: 1fr;
+  }
+}
+

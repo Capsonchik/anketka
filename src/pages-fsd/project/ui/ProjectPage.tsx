@@ -6,9 +6,11 @@ import { useProjectPageState } from '../model/useProjectPageState'
 import styles from './ProjectPage.module.css'
 import { ProjectTabs, type ProjectTabKey } from './ProjectTabs'
 import { ProjectAddressbookTab } from './tabs/ProjectAddressbookTab'
+import { ProjectAssignmentsTab } from './tabs/ProjectAssignmentsTab'
 import { ProjectChecklistsTab } from './tabs/ProjectChecklistsTab'
 import { ProjectOverviewTab } from './tabs/ProjectOverviewTab'
 import { ProjectSettingsTab } from './tabs/ProjectSettingsTab'
+import { ProjectSurveysTab } from './tabs/ProjectSurveysTab'
 
 export function ProjectPage ({ projectId }: { projectId: string }) {
   const [tab, setTab] = useState<ProjectTabKey>('overview')
@@ -77,6 +79,10 @@ export function ProjectPage ({ projectId }: { projectId: string }) {
           checklistsError={state.checklistsError}
         />
       ) : null}
+
+      {tab === 'surveys' ? <ProjectSurveysTab projectId={projectId} /> : null}
+
+      {tab === 'assignments' ? <ProjectAssignmentsTab projectId={projectId} /> : null}
 
       {tab === 'settings' ? <ProjectSettingsTab project={state.project} /> : null}
     </div>

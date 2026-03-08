@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status
 from sqlalchemy import func, select
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,6 +22,11 @@ from app.models.ref_city import RefCity
 from app.models.ref_region import RefRegion
 from app.models.shop_chain import ShopChain
 from app.models.shop_point import ShopPoint
+from app.models.survey import Survey
+from app.models.survey_invite import SurveyInvite
+from app.models.project_survey import ProjectSurvey
+from app.models.auditor import Auditor
+from app.models.project_survey_auditor import ProjectSurveyAuditor
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.schemas.projects import (
@@ -55,6 +61,15 @@ from app.schemas.projects import (
   RefRegionsResponse,
   RefRegionItem,
 )
+from app.schemas.auditors import (
+  AssignedByItem,
+  AuditorItem,
+  ProjectSurveyAssignmentItem,
+  ProjectSurveyAuditorAssignRequest,
+  ProjectSurveyAssignmentsResponse,
+)
+from app.schemas.surveys import ProjectSurveyAttachRequest, ProjectSurveysResponse, SurveyItem
+from app.schemas.surveys import SurveyInviteItem, SurveyInviteResponse
 
 
 router = APIRouter()
@@ -83,6 +98,26 @@ def to_project_item (project: Project) -> ProjectItem:
 
 def to_chain_item (chain: ShopChain) -> ShopChainItem:
   return ShopChainItem(id=chain.id, name=chain.name)
+
+def to_survey_item (s: Survey) -> SurveyItem:
+  return SurveyItem(id=s.id, title=s.title, category=s.category, createdAt=s.created_at)
+
+def to_auditor_item (a: Auditor) -> AuditorItem:
+  return AuditorItem(
+    id=a.id,
+    lastName=a.last_name,
+    firstName=a.first_name,
+    middleName=a.middle_name,
+    phone=a.phone,
+    email=a.email,
+    city=a.city,
+    birthDate=a.birth_date,
+    gender=(a.gender if a.gender in ('male', 'female') else None),
+    createdAt=a.created_at,
+  )
+
+def to_assigned_by_item (u: User) -> AssignedByItem:
+  return AssignedByItem(id=u.id, firstName=u.first_name, lastName=u.last_name, email=u.email)
 
 
 def to_shop_point_item (point: ShopPoint) -> ShopPointItem:
@@ -745,6 +780,375 @@ async def list_checklists (
     )
 
   return ChecklistsResponse(items=out)
+
+
+@router.get(
+  '/{project_id}/surveys',
+  response_model=ProjectSurveysResponse,
+  summary='Анкеты проекта',
+)
+async def list_project_surveys (
+  project_id: UUID = Path(..., description='ID проекта'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> ProjectSurveysResponse:
+  await _get_project_or_404(db, current_user, project_id)
+  res = await db.execute(
+    select(Survey)
+    .join(ProjectSurvey, ProjectSurvey.survey_id == Survey.id)
+    .where(ProjectSurvey.project_id == project_id, Survey.company_id == current_user.company_id)
+    .order_by(ProjectSurvey.attached_at.desc()),
+  )
+  return ProjectSurveysResponse(items=[to_survey_item(x) for x in res.scalars().all()])
+
+
+@router.post(
+  '/{project_id}/surveys',
+  status_code=status.HTTP_204_NO_CONTENT,
+  summary='Прикрепить анкету к проекту',
+)
+async def attach_project_survey (
+  payload: ProjectSurveyAttachRequest,
+  project_id: UUID = Path(..., description='ID проекта'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> None:
+  await _get_project_or_404(db, current_user, project_id)
+
+  sres = await db.execute(select(Survey).where(Survey.id == payload.surveyId, Survey.company_id == current_user.company_id))
+  survey = sres.scalar_one_or_none()
+  if survey is None:
+    raise HTTPException(status_code=404, detail='Анкета не найдена')
+
+  exists = await db.execute(
+    select(ProjectSurvey.project_id).where(ProjectSurvey.project_id == project_id, ProjectSurvey.survey_id == survey.id),
+  )
+  if exists.scalar_one_or_none() is not None:
+    return None
+
+  link = ProjectSurvey(project_id=project_id, survey_id=survey.id)
+  db.add(link)
+  await db.commit()
+  return None
+
+
+@router.delete(
+  '/{project_id}/surveys/{survey_id}',
+  status_code=status.HTTP_204_NO_CONTENT,
+  summary='Открепить анкету от проекта',
+)
+async def detach_project_survey (
+  project_id: UUID = Path(..., description='ID проекта'),
+  survey_id: UUID = Path(..., description='ID анкеты'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> None:
+  await _get_project_or_404(db, current_user, project_id)
+
+  # Проверим, что анкета принадлежит компании (чтобы не отдавать existence по чужим id)
+  sres = await db.execute(select(Survey.id).where(Survey.id == survey_id, Survey.company_id == current_user.company_id))
+  if sres.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Анкета не найдена')
+
+  res = await db.execute(
+    select(ProjectSurvey).where(ProjectSurvey.project_id == project_id, ProjectSurvey.survey_id == survey_id),
+  )
+  link = res.scalar_one_or_none()
+  if link is None:
+    raise HTTPException(status_code=404, detail='Анкета не прикреплена к проекту')
+
+  await db.delete(link)
+  await db.commit()
+  return None
+
+
+@router.get(
+  '/{project_id}/surveys/{survey_id}/auditors',
+  response_model=ProjectSurveyAssignmentsResponse,
+  summary='Назначенные аудиторы (проект+анкета)',
+)
+async def list_project_survey_auditors (
+  project_id: UUID = Path(..., description='ID проекта'),
+  survey_id: UUID = Path(..., description='ID анкеты'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> ProjectSurveyAssignmentsResponse:
+  await _get_project_or_404(db, current_user, project_id)
+
+  # анкета должна быть прикреплена к проекту
+  link_res = await db.execute(select(ProjectSurvey.project_id).where(ProjectSurvey.project_id == project_id, ProjectSurvey.survey_id == survey_id))
+  if link_res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Анкета не прикреплена к проекту')
+
+  res = await db.execute(
+    select(ProjectSurveyAuditor, Auditor, User)
+    .join(Auditor, Auditor.id == ProjectSurveyAuditor.auditor_id)
+    .outerjoin(User, User.id == ProjectSurveyAuditor.assigned_by_user_id)
+    .where(
+      ProjectSurveyAuditor.project_id == project_id,
+      ProjectSurveyAuditor.survey_id == survey_id,
+      Auditor.company_id == current_user.company_id,
+    )
+    .order_by(ProjectSurveyAuditor.assigned_at.desc(), Auditor.last_name.asc(), Auditor.first_name.asc()),
+  )
+
+  items: list[ProjectSurveyAssignmentItem] = []
+  for link, auditor, assigned_by in res.all():
+    items.append(
+      ProjectSurveyAssignmentItem(
+        auditor=to_auditor_item(auditor),
+        assignedAt=link.assigned_at,
+        assignedBy=to_assigned_by_item(assigned_by) if assigned_by is not None else None,
+        status=link.status,
+        acceptedAt=link.accepted_at,
+        declinedAt=link.declined_at,
+        inProgressAt=link.in_progress_at,
+      ),
+    )
+
+  return ProjectSurveyAssignmentsResponse(items=items)
+
+
+@router.post(
+  '/{project_id}/surveys/{survey_id}/auditors',
+  status_code=status.HTTP_204_NO_CONTENT,
+  summary='Назначить аудиторов (проект+анкета)',
+  description='Идемпотентно назначает аудиторов на связку проект+анкета. Доступно только админам.',
+)
+async def assign_project_survey_auditors (
+  payload: ProjectSurveyAuditorAssignRequest,
+  project_id: UUID = Path(..., description='ID проекта'),
+  survey_id: UUID = Path(..., description='ID анкеты'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> None:
+  if current_user.role != UserRole.admin:
+    raise HTTPException(status_code=403, detail='Недостаточно прав')
+
+  await _get_project_or_404(db, current_user, project_id)
+
+  link_res = await db.execute(select(ProjectSurvey.project_id).where(ProjectSurvey.project_id == project_id, ProjectSurvey.survey_id == survey_id))
+  if link_res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Анкета не прикреплена к проекту')
+
+  auditor_ids = list(dict.fromkeys(payload.auditorIds))
+  if not auditor_ids:
+    return None
+
+  # только аудиторы своей компании
+  existing_auditors = await db.execute(select(Auditor.id).where(Auditor.company_id == current_user.company_id, Auditor.id.in_(auditor_ids)))
+  allowed_ids = set(existing_auditors.scalars().all())
+  if not allowed_ids:
+    raise HTTPException(status_code=400, detail='Аудиторы не найдены')
+
+  # уже назначенные
+  existing_links = await db.execute(
+    select(ProjectSurveyAuditor.auditor_id).where(
+      ProjectSurveyAuditor.project_id == project_id,
+      ProjectSurveyAuditor.survey_id == survey_id,
+      ProjectSurveyAuditor.auditor_id.in_(list(allowed_ids)),
+    ),
+  )
+  assigned = set(existing_links.scalars().all())
+
+  for aid in allowed_ids:
+    if aid in assigned:
+      continue
+    db.add(ProjectSurveyAuditor(project_id=project_id, survey_id=survey_id, auditor_id=aid, assigned_by_user_id=current_user.id))
+
+  await db.commit()
+  return None
+
+
+@router.delete(
+  '/{project_id}/surveys/{survey_id}/auditors/{auditor_id}',
+  status_code=status.HTTP_204_NO_CONTENT,
+  summary='Снять назначение аудитора',
+  description='Снимает назначение аудитора с проект+анкета. Доступно только админам.',
+)
+async def unassign_project_survey_auditor (
+  project_id: UUID = Path(..., description='ID проекта'),
+  survey_id: UUID = Path(..., description='ID анкеты'),
+  auditor_id: UUID = Path(..., description='ID аудитора'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> None:
+  if current_user.role != UserRole.admin:
+    raise HTTPException(status_code=403, detail='Недостаточно прав')
+
+  await _get_project_or_404(db, current_user, project_id)
+
+  res = await db.execute(
+    select(ProjectSurveyAuditor).where(
+      ProjectSurveyAuditor.project_id == project_id,
+      ProjectSurveyAuditor.survey_id == survey_id,
+      ProjectSurveyAuditor.auditor_id == auditor_id,
+    ),
+  )
+  link = res.scalar_one_or_none()
+  if link is None:
+    raise HTTPException(status_code=404, detail='Назначение не найдено')
+
+  await db.delete(link)
+  await db.commit()
+  return None
+
+
+@router.delete(
+  '/{project_id}/surveys/{survey_id}/auditors',
+  status_code=status.HTTP_204_NO_CONTENT,
+  summary='Снять все назначения аудиторов',
+  description='Снимает все назначения аудиторов с проект+анкета. Доступно только админам.',
+)
+async def unassign_all_project_survey_auditors (
+  project_id: UUID = Path(..., description='ID проекта'),
+  survey_id: UUID = Path(..., description='ID анкеты'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> None:
+  if current_user.role != UserRole.admin:
+    raise HTTPException(status_code=403, detail='Недостаточно прав')
+
+  await _get_project_or_404(db, current_user, project_id)
+
+  await db.execute(
+    delete(ProjectSurveyAuditor).where(
+      ProjectSurveyAuditor.project_id == project_id,
+      ProjectSurveyAuditor.survey_id == survey_id,
+    ),
+  )
+  await db.commit()
+  return None
+
+
+def _ensure_manager_or_admin (user: User) -> None:
+  if user.role not in (UserRole.admin, UserRole.manager):
+    raise HTTPException(status_code=403, detail='Недостаточно прав')
+
+
+async def _get_or_create_invite (
+  db: AsyncSession,
+  *,
+  project_id: UUID,
+  survey_id: UUID,
+  auditor_id: UUID | None,
+  purpose: str,
+  created_by_user_id: UUID | None,
+) -> SurveyInvite:
+  res = await db.execute(
+    select(SurveyInvite)
+    .where(
+      SurveyInvite.project_id == project_id,
+      SurveyInvite.survey_id == survey_id,
+      SurveyInvite.auditor_id.is_(None) if auditor_id is None else SurveyInvite.auditor_id == auditor_id,
+      SurveyInvite.purpose == purpose,
+      SurveyInvite.revoked_at.is_(None),
+    )
+    .order_by(SurveyInvite.created_at.desc())
+    .limit(1),
+  )
+  existing = res.scalar_one_or_none()
+  if existing is not None:
+    return existing
+
+  invite = SurveyInvite(
+    project_id=project_id,
+    survey_id=survey_id,
+    auditor_id=auditor_id,
+    purpose=purpose,
+    created_by_user_id=created_by_user_id,
+  )
+  db.add(invite)
+  await db.commit()
+  out = await db.execute(select(SurveyInvite).where(SurveyInvite.token == invite.token))
+  return out.scalar_one()
+
+
+def to_invite_item (inv: SurveyInvite) -> SurveyInviteItem:
+  return SurveyInviteItem(
+    token=inv.token,
+    projectId=inv.project_id,
+    surveyId=inv.survey_id,
+    auditorId=inv.auditor_id,
+    purpose=inv.purpose,
+    createdAt=inv.created_at,
+  )
+
+
+@router.post(
+  '/{project_id}/surveys/{survey_id}/invites/test',
+  response_model=SurveyInviteResponse,
+  summary='Тестовая ссылка на прохождение (проект+анкета)',
+  description='Создаёт/возвращает тестовую ссылку (invite token) для прохождения анкеты в контексте проекта.',
+)
+async def create_test_invite (
+  project_id: UUID = Path(..., description='ID проекта'),
+  survey_id: UUID = Path(..., description='ID анкеты'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyInviteResponse:
+  _ensure_manager_or_admin(current_user)
+  await _get_project_or_404(db, current_user, project_id)
+
+  link_res = await db.execute(select(ProjectSurvey.project_id).where(ProjectSurvey.project_id == project_id, ProjectSurvey.survey_id == survey_id))
+  if link_res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Анкета не прикреплена к проекту')
+
+  invite = await _get_or_create_invite(
+    db,
+    project_id=project_id,
+    survey_id=survey_id,
+    auditor_id=None,
+    purpose='test',
+    created_by_user_id=current_user.id,
+  )
+  return SurveyInviteResponse(invite=to_invite_item(invite))
+
+
+@router.post(
+  '/{project_id}/surveys/{survey_id}/auditors/{auditor_id}/invite',
+  response_model=SurveyInviteResponse,
+  summary='Ссылка для аудитора (проект+анкета)',
+  description='Создаёт/возвращает ссылку на прохождение анкеты для назначенного аудитора.',
+)
+async def create_auditor_invite (
+  project_id: UUID = Path(..., description='ID проекта'),
+  survey_id: UUID = Path(..., description='ID анкеты'),
+  auditor_id: UUID = Path(..., description='ID аудитора'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyInviteResponse:
+  _ensure_manager_or_admin(current_user)
+  await _get_project_or_404(db, current_user, project_id)
+
+  link_res = await db.execute(select(ProjectSurvey.project_id).where(ProjectSurvey.project_id == project_id, ProjectSurvey.survey_id == survey_id))
+  if link_res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Анкета не прикреплена к проекту')
+
+  assigned_res = await db.execute(
+    select(ProjectSurveyAuditor.auditor_id).where(
+      ProjectSurveyAuditor.project_id == project_id,
+      ProjectSurveyAuditor.survey_id == survey_id,
+      ProjectSurveyAuditor.auditor_id == auditor_id,
+    ),
+  )
+  if assigned_res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Аудитор не назначен на эту анкету')
+
+  # аудитора проверяем, чтобы не светить existence чужих id
+  aud_res = await db.execute(select(Auditor.id).where(Auditor.id == auditor_id, Auditor.company_id == current_user.company_id))
+  if aud_res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Аудитор не найден')
+
+  invite = await _get_or_create_invite(
+    db,
+    project_id=project_id,
+    survey_id=survey_id,
+    auditor_id=auditor_id,
+    purpose='assignment',
+    created_by_user_id=current_user.id,
+  )
+  return SurveyInviteResponse(invite=to_invite_item(invite))
 
 
 @router.post(
