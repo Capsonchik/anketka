@@ -204,10 +204,14 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
     }
 
     const sortRaw = editSortOrder.trim()
-    const sortOrder = sortRaw ? Number(sortRaw) : null
-    if (sortRaw && (!Number.isFinite(sortOrder) || sortOrder < 0)) {
-      setQuestionError('Порядок должен быть числом ≥ 0')
-      return
+    let sortOrder: number | null = null
+    if (sortRaw) {
+      const parsed = Number(sortRaw)
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setQuestionError('Порядок должен быть числом ≥ 0')
+        return
+      }
+      sortOrder = parsed
     }
 
     setIsSavingQuestion(true)

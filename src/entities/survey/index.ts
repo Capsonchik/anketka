@@ -2,6 +2,8 @@ export type {
   ProjectSurveyAttachRequest,
   ProjectSurveysResponse,
   SurveyCategory,
+  SurveyAttachedProjectItem,
+  SurveyAttachedProjectsResponse,
   SurveyApplyTemplateRequest,
   SurveyBuilderResponse,
   SurveyCreateRequest,
