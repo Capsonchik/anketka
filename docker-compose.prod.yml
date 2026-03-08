@@ -1,0 +1,15 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - '127.0.0.1:8000:8000'
+    volumes:
+      - '${TWC_CA_CERT_PATH:-/opt/anketka/.cloud-certs/root.crt}:/certs/root.crt:ro'
+    command: >
+      sh -c "alembic upgrade head
+      && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
+
