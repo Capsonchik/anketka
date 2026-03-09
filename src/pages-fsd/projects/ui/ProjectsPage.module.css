@@ -16,10 +16,10 @@
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.7);
-  font-weight: 700;
-  font-size: 20px;
-  line-height: 1;
+  font-weight: 600;
   cursor: pointer;
+  display: grid;
+  place-items: center;
 }
 
 .subTitle {
@@ -40,12 +40,12 @@
 
 .hint {
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .error {
   color: rgba(218, 60, 60, 0.92);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .list {
@@ -85,7 +85,7 @@
 }
 
 .cardTitle {
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.2px;
   font-size: 16px;
 }
@@ -93,7 +93,7 @@
 .cardDescription {
   margin-top: 10px;
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -114,13 +114,13 @@
 .metaLabel {
   color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .metaValue {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.45;
 }
 

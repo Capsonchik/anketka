@@ -5,14 +5,15 @@ import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 
 import type { RefCitiesResponse, RefRegionsResponse, ShopPointItem } from '../../model/types'
-import { Button } from '@/shared/ui'
 
 import styles from '../ProjectPage.module.css'
 import { ProjectAddressbookAddPointModal } from './ProjectAddressbookAddPointModal'
 import { ProjectAddressbookEditPointModal } from './ProjectAddressbookEditPointModal'
+import { ProjectAddressbookImportModal } from './ProjectAddressbookImportModal'
+import { downloadApiFile } from '../../lib/downloadApiFile'
 
 export function ProjectAddressbookTab ({
-  addressbookFile,
+  projectId,
   onSelectFile,
   onUpload,
   isUploading,
@@ -24,7 +25,7 @@ export function ProjectAddressbookTab ({
   isPointsLoading,
   pointsError,
 }: {
-  addressbookFile: File | null
+  projectId: string
   onSelectFile: (file: File | null) => void
   onUpload: () => void
   isUploading: boolean
@@ -39,6 +40,7 @@ export function ProjectAddressbookTab ({
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [editPoint, setEditPoint] = useState<ShopPointItem | null>(null)
 
   const [refsError, setRefsError] = useState<string | null>(null)
@@ -138,30 +140,39 @@ export function ProjectAddressbookTab ({
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <div className={styles.sectionTitle}>Адресная программа</div>
-          {hasPoints ? (
-            <div className={styles.formRow}>
-              <Button type="button" variant="primary" onClick={openAdd} disabled={isCreatingPoint || isRefsLoading}>
-                Добавить точку
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => setIsImportOpen((v) => !v)} disabled={isUploading}>
-                {isImportOpen ? 'Скрыть импорт' : 'Импорт из файла'}
-              </Button>
-            </div>
-          ) : null}
-        </div>
-
-        {!hasPoints || isImportOpen ? (
           <div className={styles.formRow}>
-            <input
-              type="file"
-              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-              onChange={(e) => onSelectFile(e.target.files?.[0] ?? null)}
-            />
-            <Button type="button" variant="primary" onClick={onUpload} disabled={isUploading || !addressbookFile}>
-              Загрузить
-            </Button>
+            <button type="button" className={styles.actionButton} onClick={openAdd} disabled={isCreatingPoint || isRefsLoading}>
+              Добавить точку
+            </button>
+            <button
+              type="button"
+              className={styles.actionButton}
+              onClick={async () => {
+                setIsExporting(true)
+                try {
+                  await downloadApiFile({
+                    url: apiRoutes.projects.addressbookExport(projectId),
+                    params: {
+                      q: q.trim() || null,
+                      chainId: chainId ?? null,
+                      cityName: cityName ?? null,
+                      regionCode: regionCode ?? null,
+                    },
+                    fallbackFilename: 'addressbook.xlsx',
+                  })
+                } finally {
+                  setIsExporting(false)
+                }
+              }}
+              disabled={isPointsLoading || isExporting}
+            >
+              {isExporting ? 'Экспорт…' : 'Экспорт'}
+            </button>
+            <button type="button" className={styles.actionButton} onClick={() => setIsImportOpen(true)} disabled={isUploading}>
+              Импорт Excel
+            </button>
           </div>
-        ) : null}
+        </div>
 
         {isPointsLoading ? <div className={styles.hint} style={{ marginTop: 10 }}>Загрузка точек…</div> : null}
         {pointsError ? <div className={styles.error} style={{ marginTop: 10 }}>{pointsError}</div> : null}
@@ -238,7 +249,7 @@ export function ProjectAddressbookTab ({
                           openEdit(p)
                         }}
                       >
-                        <PencilIcon />
+                        <img src="/icons/edit.svg" width={16} height={16} alt="" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
@@ -251,7 +262,7 @@ export function ProjectAddressbookTab ({
                           onDeletePoint(p.id)
                         }}
                       >
-                        <TrashIcon />
+                        <img src="/icons/trash.svg" width={16} height={16} alt="" aria-hidden="true" />
                       </button>
                     </div>
                   </td>
@@ -293,35 +304,15 @@ export function ProjectAddressbookTab ({
           setIsEditOpen(false)
         }}
       />
+
+      <ProjectAddressbookImportModal
+        open={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        disabled={false}
+        isUploading={isUploading}
+        onSelectFile={onSelectFile}
+        onUpload={onUpload}
+      />
     </div>
   )
 }
-
-function PencilIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function TrashIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 3h6m-8 4h10m-9 0 .7 14h6.6L16 7M10 11v7m4-7v7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-

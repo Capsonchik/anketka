@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react'
 import { Input, Modal, SelectPicker } from 'rsuite'
 
 import type { ChecklistItemPublic } from '../../model/types'
-import { Button } from '@/shared/ui'
+
+import { apiRoutes } from '@/api-config/api-routes'
 
 import styles from '../ProjectPage.module.css'
 import { ProjectChecklistDetailsModal } from './ProjectChecklistDetailsModal'
 import { ProjectChecklistUploadModal } from './ProjectChecklistUploadModal'
+import { downloadApiFile } from '../../lib/downloadApiFile'
 
 export function ProjectChecklistsTab ({
   projectId,
@@ -38,6 +40,7 @@ export function ProjectChecklistsTab ({
   const [isOpen, setIsOpen] = useState(false)
   const [active, setActive] = useState<ChecklistItemPublic | null>(null)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [renameTarget, setRenameTarget] = useState<ChecklistItemPublic | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
 
@@ -64,25 +67,34 @@ export function ProjectChecklistsTab ({
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <div className={styles.sectionTitle}>Чек-листы</div>
-          {checklists.length > 0 ? (
-            <Button type="button" variant="primary" onClick={() => setIsUploadOpen(true)} disabled={isUploading}>
-              Добавить чек-лист
-            </Button>
-          ) : null}
-        </div>
-
-        {checklists.length === 0 ? (
           <div className={styles.formRow}>
-            <input
-              type="file"
-              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-              onChange={(e) => onSelectFile(e.target.files?.[0] ?? null)}
-            />
-            <Button type="button" variant="primary" onClick={onUpload} disabled={isUploading || !checklistFile}>
-              Загрузить
-            </Button>
+            <button
+              type="button"
+              className={styles.actionButton}
+              onClick={async () => {
+                setIsExporting(true)
+                try {
+                  await downloadApiFile({
+                    url: apiRoutes.projects.checklistsExport(projectId),
+                    params: {
+                      q: q.trim() || null,
+                      chainId: chainId ?? null,
+                    },
+                    fallbackFilename: 'checklists.xlsx',
+                  })
+                } finally {
+                  setIsExporting(false)
+                }
+              }}
+              disabled={isChecklistsLoading || isExporting}
+            >
+              {isExporting ? 'Экспорт…' : 'Экспорт'}
+            </button>
+            <button type="button" className={styles.actionButton} onClick={() => setIsUploadOpen(true)} disabled={isUploading}>
+              Импорт Excel
+            </button>
           </div>
-        ) : null}
+        </div>
 
         {isChecklistsLoading ? <div className={styles.hint} style={{ marginTop: 10 }}>Загрузка чек-листов…</div> : null}
         {checklistsError ? <div className={styles.error} style={{ marginTop: 10 }}>{checklistsError}</div> : null}
@@ -148,7 +160,7 @@ export function ProjectChecklistsTab ({
                           setRenameTitle(c.title)
                         }}
                       >
-                        <PencilIcon />
+                        <img src="/icons/edit.svg" width={16} height={16} alt="" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
@@ -163,7 +175,7 @@ export function ProjectChecklistsTab ({
                           onDelete(c.id)
                         }}
                       >
-                        <TrashIcon />
+                        <img src="/icons/trash.svg" width={16} height={16} alt="" aria-hidden="true" />
                       </button>
                     </div>
                   </td>
@@ -206,12 +218,12 @@ export function ProjectChecklistsTab ({
           <Input value={renameTitle} onChange={(v) => setRenameTitle(String(v ?? ''))} />
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" variant="secondary" onClick={() => setRenameTarget(null)} disabled={isMutating}>
+          <button type="button" className={styles.actionButton} onClick={() => setRenameTarget(null)} disabled={isMutating}>
             Отмена
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
-            variant="primary"
+            className={styles.actionButton}
             onClick={() => {
               if (!renameTarget) return
               onRename(renameTarget.id, renameTitle.trim())
@@ -220,38 +232,9 @@ export function ProjectChecklistsTab ({
             disabled={isMutating || renameTitle.trim().length === 0}
           >
             Сохранить
-          </Button>
+          </button>
         </Modal.Footer>
       </Modal>
     </div>
   )
 }
-
-function PencilIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function TrashIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 3h6m-8 4h10m-9 0 .7 14h6.6L16 7M10 11v7m4-7v7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-

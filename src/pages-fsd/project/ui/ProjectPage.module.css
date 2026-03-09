@@ -48,6 +48,33 @@
   flex-wrap: wrap;
 }
 
+.actionButton {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: transform 120ms ease, background-color 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .actionButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
+.actionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .hint {
   color: var(--text-secondary);
   font-weight: 600;
@@ -66,8 +93,10 @@
 .tableWrap {
   margin-top: 12px;
   overflow-x: auto;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  overflow-y: hidden;
 }
 
 .table {
@@ -81,23 +110,30 @@
   font-size: 12px;
   font-weight: 600;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.08);
   white-space: nowrap;
-  color: var(--text-secondary);
+  color: rgba(11, 18, 32, 0.72);
+  background: rgba(255, 255, 255, 0.75);
 }
 
 .td {
   font-size: 13px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
   white-space: nowrap;
 }
 
 .tdWrap {
   font-size: 13px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
   white-space: pre-wrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .table tbody tr:hover {
+    background: rgba(66, 170, 255, 0.06);
+  }
 }
 
 .rowActions {
@@ -111,16 +147,24 @@
   width: 30px;
   height: 30px;
   border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.9);
-  display: grid;
-  place-items: center;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  color: rgba(0, 0, 0, 0.75);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms ease, transform 120ms ease;
 }
 
 .iconButtonDanger {
   color: rgba(218, 60, 60, 0.92);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iconButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
 }
 
 .iconButton:disabled {
@@ -142,11 +186,10 @@
 
 .tabButton {
   border: 1px solid rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 1);
+  background: rgba(255, 255, 255, 0.75);
   border-radius: 999px;
   padding: 8px 12px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  font-weight: 500;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -154,8 +197,8 @@
 }
 
 .tabButtonActive {
-  border-color: rgba(0, 0, 0, 0.18);
-  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(66, 170, 255, 0.22);
+  background: rgba(66, 170, 255, 0.08);
 }
 
 .badge {

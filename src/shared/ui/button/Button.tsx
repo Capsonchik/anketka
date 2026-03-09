@@ -4,9 +4,11 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import styles from './Button.module.css'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost'
+export type ButtonSize = 'md' | 'sm'
 
 type BaseProps = {
   variant?: ButtonVariant
+  size?: ButtonSize
   fullWidth?: boolean
   leftSlot?: ReactNode
 }
@@ -15,6 +17,7 @@ type ButtonProps = BaseProps & ComponentPropsWithoutRef<'button'>
 
 export function Button ({
   variant = 'primary',
+  size = 'md',
   fullWidth,
   leftSlot,
   className,
@@ -24,6 +27,7 @@ export function Button ({
   const buttonClassName = [
     styles.button,
     styles[variant],
+    styles[size],
     fullWidth ? styles.fullWidth : '',
     className ?? '',
   ]
@@ -46,6 +50,7 @@ type ButtonLinkProps = BaseProps &
 
 export function ButtonLink ({
   variant = 'primary',
+  size = 'md',
   fullWidth,
   leftSlot,
   className,
@@ -55,6 +60,7 @@ export function ButtonLink ({
   const linkClassName = [
     styles.button,
     styles[variant],
+    styles[size],
     fullWidth ? styles.fullWidth : '',
     className ?? '',
   ]

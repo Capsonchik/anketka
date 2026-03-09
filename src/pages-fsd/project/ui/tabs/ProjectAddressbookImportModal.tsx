@@ -3,20 +3,20 @@ import { Modal } from 'rsuite'
 
 import styles from '../ProjectPage.module.css'
 
-export function ProjectChecklistUploadModal ({
+export function ProjectAddressbookImportModal ({
   open,
   onClose,
-  file,
+  disabled,
+  isUploading,
   onSelectFile,
   onUpload,
-  isUploading,
 }: {
   open: boolean
   onClose: () => void
-  file: File | null
+  disabled: boolean
+  isUploading: boolean
   onSelectFile: (file: File | null) => void
   onUpload: () => void
-  isUploading: boolean
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
@@ -24,11 +24,11 @@ export function ProjectChecklistUploadModal ({
   return (
     <Modal open={open} onClose={onClose} size="md">
       <Modal.Header>
-        <Modal.Title>Импорт чек-листа</Modal.Title>
+        <Modal.Title>Импорт адресной программы</Modal.Title>
       </Modal.Header>
       <Modal.Body>
         <div className={styles.hint}>
-          Загрузите Excel/CSV с товарами. Если в файле несколько разных “Магазин” — будет создано несколько чек‑листов (по магазину/сети).
+          Выберите файл <b>.xlsx</b> или <b>.csv</b> и он будет загружен автоматически.
         </div>
 
         <input
@@ -49,7 +49,7 @@ export function ProjectChecklistUploadModal ({
           <button
             type="button"
             className={styles.actionButton}
-            disabled={isUploading}
+            disabled={disabled || isUploading}
             onClick={() => fileRef.current?.click()}
           >
             Импорт Excel/CSV
@@ -60,32 +60,6 @@ export function ProjectChecklistUploadModal ({
         </div>
 
         {isUploading ? <div className={styles.hint} style={{ marginTop: 10 }}>Импорт…</div> : null}
-
-        <div className={styles.hint} style={{ marginTop: 12, marginBottom: 6 }}>Пример файла (первая строка — заголовки):</div>
-        <div className={styles.tableWrap}>
-          <table className={styles.table} style={{ minWidth: 860 }}>
-            <thead>
-              <tr>
-                <th className={styles.th}>Магазин *</th>
-                <th className={styles.th}>Категория *</th>
-                <th className={styles.th}>Бренд *</th>
-                <th className={styles.th}>Артикул</th>
-                <th className={styles.th}>Название *</th>
-                <th className={styles.th}>Размер</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className={styles.td}>МАГНИТ КОСМЕТИК</td>
-                <td className={styles.td}>Колготки женские</td>
-                <td className={styles.td}>Pierre Cardin</td>
-                <td className={styles.td}>4000092873</td>
-                <td className={styles.tdWrap}>Leopard 40</td>
-                <td className={styles.td}>2</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </Modal.Body>
       <Modal.Footer>
         <button type="button" className={styles.actionButton} onClick={onClose} disabled={isUploading}>

@@ -227,7 +227,7 @@ export function ProjectsPage () {
             setIsModalOpen(true)
           }}
         >
-          +
+          <img src="/icons/add.svg" width={18} height={18} alt="" aria-hidden="true" />
         </button>
       </div>
 

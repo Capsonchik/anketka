@@ -7,6 +7,7 @@ import { apiRoutes } from '@/api-config/api-routes'
 import type { ChecklistDetailsResponse, ChecklistItemPublic, ChecklistItemCreateRequest, ChecklistItemUpdateRequest } from '../../model/types'
 import styles from '../ProjectPage.module.css'
 import { ProjectChecklistAddItemModal } from './ProjectChecklistAddItemModal'
+import { downloadApiFile } from '../../lib/downloadApiFile'
 
 export function ProjectChecklistDetailsModal ({
   open,
@@ -27,6 +28,7 @@ export function ProjectChecklistDetailsModal ({
   const [brand, setBrand] = useState<string | null>(null)
   const [category, setCategory] = useState<string | null>(null)
   const [q, setQ] = useState('')
+  const [isExporting, setIsExporting] = useState(false)
   const [editItemId, setEditItemId] = useState<string | null>(null)
   const [draft, setDraft] = useState<ChecklistItemUpdateRequest | null>(null)
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -102,6 +104,30 @@ export function ProjectChecklistDetailsModal ({
                   onClick={() => setIsAddOpen(true)}
                 >
                   <PlusIcon />
+                </button>
+                <button
+                  type="button"
+                  className={styles.actionButton}
+                  onClick={async () => {
+                    if (!checklist) return
+                    setIsExporting(true)
+                    try {
+                      await downloadApiFile({
+                        url: apiRoutes.projects.checklistItemsExport(projectId, checklist.id),
+                        params: {
+                          q: q.trim() || null,
+                          brand: brand ?? null,
+                          category: category ?? null,
+                        },
+                        fallbackFilename: 'checklist-items.xlsx',
+                      })
+                    } finally {
+                      setIsExporting(false)
+                    }
+                  }}
+                  disabled={!checklist || isExporting}
+                >
+                  {isExporting ? 'Экспорт…' : 'Экспорт'}
                 </button>
                 <SelectPicker
                   size="sm"
@@ -243,7 +269,7 @@ export function ProjectChecklistDetailsModal ({
                                     })
                                   }}
                                 >
-                                  <PencilIcon />
+                                  <img src="/icons/edit.svg" width={16} height={16} alt="" aria-hidden="true" />
                                 </button>
                                 <button
                                   type="button"
@@ -269,7 +295,7 @@ export function ProjectChecklistDetailsModal ({
                                     }
                                   }}
                                 >
-                                  <TrashIcon />
+                                  <img src="/icons/trash.svg" width={16} height={16} alt="" aria-hidden="true" />
                                 </button>
                               </div>
                             </td>
@@ -313,34 +339,6 @@ export function ProjectChecklistDetailsModal ({
         }}
       />
     </>
-  )
-}
-
-function PencilIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function TrashIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 3h6m-8 4h10m-9 0 .7 14h6.6L16 7M10 11v7m4-7v7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   )
 }
 

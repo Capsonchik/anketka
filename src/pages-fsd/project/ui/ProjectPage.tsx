@@ -50,7 +50,7 @@ export function ProjectPage ({ projectId }: { projectId: string }) {
 
       {tab === 'addressbook' ? (
         <ProjectAddressbookTab
-          addressbookFile={state.addressbookFile}
+          projectId={projectId}
           onSelectFile={state.setAddressbookFile}
           onUpload={state.submitAddressbookUpload}
           isUploading={state.isUploadingAddressbook}

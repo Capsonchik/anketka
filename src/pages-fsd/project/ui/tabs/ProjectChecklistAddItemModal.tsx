@@ -73,7 +73,7 @@ export function ProjectChecklistAddItemModal ({
 function Field ({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'grid', gap: 6 }}>
-      <div style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600 }}>{label}</div>
       {children}
     </div>
   )
