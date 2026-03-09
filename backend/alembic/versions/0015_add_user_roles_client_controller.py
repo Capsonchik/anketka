@@ -1,6 +1,6 @@
 """add user roles: client + controller
 
-Revision ID: 0015_user_roles_client_controller
+Revision ID: 0015_user_roles_client_ctrl
 Revises: 0014_auditor_portal
 Create Date: 2026-03-09
 
@@ -9,7 +9,7 @@ Create Date: 2026-03-09
 from alembic import op
 
 
-revision = '0015_user_roles_client_controller'
+revision = '0015_user_roles_client_ctrl'
 down_revision = '0014_auditor_portal'
 branch_labels = None
 depends_on = None

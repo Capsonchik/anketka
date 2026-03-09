@@ -4,7 +4,7 @@ Fixes legacy reference data where region codes were seeded as vehicle plate code
 (e.g. 99/177/777 for Moscow, 93 for Krasnodar, 90 for Moscow oblast, etc).
 
 Revision ID: 0016_normalize_region_codes
-Revises: 0015_user_roles_client_controller
+Revises: 0015_user_roles_client_ctrl
 Create Date: 2026-03-09
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 
 revision = '0016_normalize_region_codes'
-down_revision = '0015_user_roles_client_controller'
+down_revision = '0015_user_roles_client_ctrl'
 branch_labels = None
 depends_on = None
 
