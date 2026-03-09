@@ -45,13 +45,11 @@ jobs:
           echo "DEPLOY_USER=$USER" >> "$GITHUB_ENV"
           echo "DEPLOY_PORT=$PORT" >> "$GITHUB_ENV"
 
-      - name: Add host to known_hosts
-        run: |
-          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
-
       - name: Run remote deploy script
         run: |
           ssh -p "$DEPLOY_PORT" \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "bash /opt/anketka/scripts/deploy.sh"
 
