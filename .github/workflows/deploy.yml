@@ -1,0 +1,35 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-master
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Add host to known_hosts
+        run: |
+          ssh-keyscan -p "${{ secrets.DEPLOY_SSH_PORT }}" "${{ secrets.DEPLOY_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Run remote deploy script
+        run: |
+          ssh -p "${{ secrets.DEPLOY_SSH_PORT }}" \
+            "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}" \
+            "bash /opt/anketka/scripts/deploy.sh"
+

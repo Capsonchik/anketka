@@ -1,8 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from app.api.router import api_router
 from app.core.config import settings
+
+
+def getCorsOrigins () -> list[str]:
+  raw = os.getenv('CORS_ORIGINS')
+  if raw:
+    return [x.strip() for x in raw.split(',') if x.strip()]
+  return [
+    'https://survey-all.ru',
+    'https://www.survey-all.ru',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ]
 
 
 app = FastAPI(
@@ -15,7 +28,7 @@ app = FastAPI(
 
 app.add_middleware(
   CORSMiddleware,
-  allow_origins=['*'],
+  allow_origins=getCorsOrigins(),
   allow_credentials=True,
   allow_methods=['*'],
   allow_headers=['*'],
