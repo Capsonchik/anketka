@@ -1,0 +1,115 @@
+.note {
+  color: rgba(11, 18, 32, 0.86);
+  line-height: 1.6;
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.sampleWrap {
+  margin-top: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.75);
+  overflow: auto;
+}
+
+.sampleTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.sampleTable th,
+.sampleTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sampleTable th {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(11, 18, 32, 0.72);
+  background: rgba(255, 255, 255, 0.75);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.08);
+  text-align: left;
+}
+
+.fileInput {
+  display: none;
+}
+
+.fileLine {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fileName {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.pickButton,
+.closeButton {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pickButton:hover,
+  .closeButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
+.pickButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.error {
+  margin-top: 10px;
+  color: rgba(218, 60, 60, 0.92);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.result {
+  margin-top: 10px;
+}
+
+.success {
+  color: rgba(20, 140, 90, 0.92);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.errorList {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.errorLine {
+  font-size: 12px;
+  color: rgba(11, 18, 32, 0.86);
+}
+

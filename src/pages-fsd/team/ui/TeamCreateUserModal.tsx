@@ -8,6 +8,7 @@ export type CreateUserFormState = {
   firstName: string
   lastName: string
   email: string
+  phone: string
   role: UserRole
   note: string
 }
@@ -54,6 +55,15 @@ export function TeamCreateUserModal ({
               value={form.email}
               onChange={(v) => onChange({ email: String(v ?? '') })}
               placeholder="user@example.com"
+            />
+          </Field>
+
+          <Field label="Телефон">
+            <Input
+              value={form.phone}
+              onChange={(v) => onChange({ phone: String(v ?? '') })}
+              placeholder="+7…"
+              inputMode="tel"
             />
           </Field>
 

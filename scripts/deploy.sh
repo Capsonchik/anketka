@@ -20,8 +20,6 @@ systemctl restart "$FRONT_SERVICE"
 echo "==> Rebuilding & restarting backend (docker compose)"
 docker compose -f "$COMPOSE_FILE" up -d --build backend
 
-echo "==> Reloading nginx"
-systemctl reload nginx
 
 echo "==> Status"
 systemctl status "$FRONT_SERVICE" --no-pager || true

@@ -1,21 +1,24 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Input, SelectPicker } from 'rsuite'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import type { UserRole } from '@/entities/user'
-import { userRoleOptions } from '@/entities/user'
 import { Button } from '@/shared/ui'
 
+import { canEditTeamUser } from '../lib/canEditTeamUser'
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
+import { normalizeEmail, normalizePhone } from '../lib/normalizeContact'
 import type { CreateUserResponse, MeResponse, TeamUser, TeamUserDetailsResponse, TeamUsersResponse } from '../model/types'
+import type { TeamAuditorsTabHandle } from './TeamAuditorsTab'
 import { TeamAuditorsTab } from './TeamAuditorsTab'
 import { TeamCreateUserModal, type CreateUserFormState } from './TeamCreateUserModal'
 import { TeamTabs, type TeamTabKey } from './TeamTabs'
-import { TeamUserCard } from './TeamUserCard'
 import { TeamUserDetailsModal } from './TeamUserDetailsModal'
+import { TeamUsersImportModal } from './TeamUsersImportModal'
+import { TeamUsersTab } from './TeamUsersTab'
 import styles from './TeamPage.module.css'
 
 export function TeamPage () {
@@ -40,6 +43,7 @@ export function TeamPage () {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
     role: 'manager',
     note: '',
   })
@@ -48,6 +52,10 @@ export function TeamPage () {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [details, setDetails] = useState<TeamUserDetailsResponse | null>(null)
+  const [detailsMode, setDetailsMode] = useState<'view' | 'edit'>('view')
+  const [isUsersImportOpen, setIsUsersImportOpen] = useState(false)
+
+  const auditorsRef = useRef<TeamAuditorsTabHandle | null>(null)
 
   const hasFilters = useMemo(() => search.trim().length > 0 || roleFilter !== 'all', [roleFilter, search])
 
@@ -55,30 +63,66 @@ export function TeamPage () {
     setIsModalOpen(false)
     setSubmitError(null)
     setSubmitSuccess(null)
-    setCreateForm({ firstName: '', lastName: '', email: '', role: 'manager', note: '' })
+    setCreateForm({ firstName: '', lastName: '', email: '', phone: '', role: 'manager', note: '' })
   }
 
   function resetCreateForm () {
     setSubmitError(null)
     setSubmitSuccess(null)
-    setCreateForm((prev) => ({ ...prev, firstName: '', lastName: '', email: '', note: '' }))
+    setCreateForm((prev) => ({ ...prev, firstName: '', lastName: '', email: '', phone: '', note: '' }))
   }
 
-  async function openDetails (userId: string) {
+  async function openDetails (userId: string, mode: 'view' | 'edit' = 'view') {
     setIsDetailsOpen(true)
     setDetailsLoading(true)
     setDetailsError(null)
     setDetails(null)
+    setDetailsMode(mode)
 
     try {
       const res = await axiosMainRequest.get<TeamUserDetailsResponse>(`${apiRoutes.team.users}/${userId}`)
       setDetails(res.data)
+      if (mode === 'edit' && !canEditTeamUser(myRole, res.data.user.role)) {
+        setDetailsMode('view')
+      }
     } catch (err: unknown) {
       setDetailsError(getApiErrorMessage(err))
     } finally {
       setDetailsLoading(false)
     }
   }
+
+  async function updateUser (userId: string, patch: { firstName: string; lastName: string; email: string; phone: string | null; role: UserRole; note: string | null }) {
+    setDetailsLoading(true)
+    setDetailsError(null)
+    try {
+      await axiosMainRequest.patch(`${apiRoutes.team.users}/${userId}`, patch)
+      await loadUsers()
+      await openDetails(userId, 'view')
+    } catch (err: unknown) {
+      setDetailsError(getApiErrorMessage(err))
+      setDetailsLoading(false)
+    }
+  }
+
+  async function deleteUser (userId: string) {
+    if (!window.confirm('Удалить пользователя?')) return
+    setDetailsLoading(true)
+    setDetailsError(null)
+    try {
+      await axiosMainRequest.delete(`${apiRoutes.team.users}/${userId}`)
+      await loadUsers()
+      setIsDetailsOpen(false)
+      setDetails(null)
+      setDetailsMode('view')
+    } catch (err: unknown) {
+      setDetailsError(getApiErrorMessage(err))
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  const canEditDetails = details?.user ? canEditTeamUser(myRole, details.user.role) : false
 
   async function loadUsers (opts?: { q?: string; role?: UserRole | 'all'; companyId?: string | null }) {
     setIsLoading(true)
@@ -148,8 +192,23 @@ export function TeamPage () {
     const fn = createForm.firstName.trim()
     const ln = createForm.lastName.trim()
     const em = createForm.email.trim()
+    const phone = createForm.phone.trim()
     if (!fn || !ln || !em) {
       setSubmitError('Заполните обязательные поля')
+      return
+    }
+
+    const emailNorm = normalizeEmail(em)
+    const phoneNorm = normalizePhone(phone)
+    const emailExists = users.some((u) => normalizeEmail(u.email) === emailNorm)
+    const phoneExists = phoneNorm ? users.some((u) => normalizePhone(u.phone) === phoneNorm) : false
+
+    if (emailExists) {
+      setSubmitError('Участник с такой почтой уже существует')
+      return
+    }
+    if (phoneExists) {
+      setSubmitError('Участник с таким телефоном уже существует')
       return
     }
 
@@ -159,6 +218,7 @@ export function TeamPage () {
         firstName: fn,
         lastName: ln,
         email: em,
+        phone: phone || null,
         role: createForm.role,
         note: createForm.note.trim() || null,
       })
@@ -188,20 +248,46 @@ export function TeamPage () {
     <div className={styles.page}>
       <div className={styles.headerRow}>
         <h1 className="titleH1">Команда</h1>
-        {tab === 'users' ? (
-          <button
-            type="button"
-            className={styles.addIconButton}
-            aria-label="Добавить участника"
-            onClick={() => {
-              setSubmitError(null)
-              setSubmitSuccess(null)
-              setIsModalOpen(true)
-            }}
-          >
-            +
-          </button>
-        ) : null}
+        <div className={styles.headerActions}>
+          {tab === 'users' && myRole === 'admin' ? (
+            <button type="button" className={styles.headerTextButton} onClick={() => setIsUsersImportOpen(true)}>
+              Импорт Excel
+            </button>
+          ) : null}
+
+          {tab === 'users' ? (
+            <button
+              type="button"
+              className={styles.addIconButton}
+              aria-label="Добавить участника"
+              onClick={() => {
+                setSubmitError(null)
+                setSubmitSuccess(null)
+                setIsModalOpen(true)
+              }}
+            >
+              <Image src="/icons/add.svg" alt="" width={18} height={18} aria-hidden="true" />
+            </button>
+          ) : null}
+
+          {tab === 'auditors' && myRole === 'admin' ? (
+            <button type="button" className={styles.headerTextButton} onClick={() => auditorsRef.current?.openImport()}>
+              Импорт Excel
+            </button>
+          ) : null}
+
+          {tab === 'auditors' ? (
+            <button
+              type="button"
+              className={styles.addIconButton}
+              aria-label="Добавить аудитора"
+              disabled={myRole !== 'admin'}
+              onClick={() => auditorsRef.current?.openCreate()}
+            >
+              <Image src="/icons/add.svg" alt="" width={18} height={18} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className={styles.subTitle}>Управляйте участниками компании, их ролями и доступами.</div>
@@ -217,44 +303,25 @@ export function TeamPage () {
           </div>
         ) : (
           <>
-            <div className={styles.filters}>
-              <Input
-                size='sm'
-                className={styles.input}
-                value={search}
-                onChange={(value) => setSearch(String(value ?? ''))}
-                placeholder="Поиск по имени, фамилии или почте…"
-                aria-label="Поиск"
-              />
-              <SelectPicker
-                size='sm'
-                className={styles.select}
-                value={roleFilter}
-                onChange={(value) => setRoleFilter((value as UserRole | 'all') ?? 'all')}
-                aria-label="Фильтр по роли"
-                cleanable={false}
-                searchable={false}
-                block
-                data={[
-                  { label: 'Все роли', value: 'all' },
-                  ...userRoleOptions,
-                ]}
-              />
-            </div>
-
-            {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
-            {error ? <div className={styles.error}>{error}</div> : null}
-            {isNoResults ? <div className={styles.hint}>Ничего не найдено</div> : null}
-
-            <div className={styles.grid}>
-              {users.map((u) => (
-                <TeamUserCard key={u.id} user={u} onClick={() => openDetails(u.id)} />
-              ))}
-            </div>
+            <TeamUsersTab
+              users={users}
+              isLoading={isLoading}
+              error={error}
+              isNoResults={isNoResults}
+              search={search}
+              roleFilter={roleFilter}
+              onSearchChange={setSearch}
+              onRoleFilterChange={setRoleFilter}
+              isAdmin={myRole === 'admin'}
+              canEditUser={(u) => canEditTeamUser(myRole, u.role)}
+              onOpenDetails={(userId) => openDetails(userId, 'view')}
+              onEdit={(userId) => openDetails(userId, 'edit')}
+              onDelete={deleteUser}
+            />
           </>
         )
       ) : (
-        <TeamAuditorsTab isAdmin={myRole === 'admin'} />
+        <TeamAuditorsTab ref={auditorsRef} isAdmin={myRole === 'admin'} />
       )}
 
       <TeamUserDetailsModal
@@ -264,6 +331,11 @@ export function TeamPage () {
         error={detailsError}
         details={details}
         isAdmin={myRole === 'admin'}
+        canEdit={canEditDetails}
+        mode={detailsMode}
+        onModeChange={setDetailsMode}
+        onSave={updateUser}
+        onDelete={deleteUser}
       />
 
       <TeamCreateUserModal
@@ -276,6 +348,13 @@ export function TeamPage () {
         onChange={(patch) => setCreateForm((prev) => ({ ...prev, ...patch }))}
         onSubmitClose={() => submitCreate('close')}
         onSubmitKeep={() => submitCreate('keep')}
+      />
+
+      <TeamUsersImportModal
+        open={isUsersImportOpen}
+        onClose={() => setIsUsersImportOpen(false)}
+        disabled={myRole !== 'admin'}
+        onImported={() => loadUsers()}
       />
     </div>
   )

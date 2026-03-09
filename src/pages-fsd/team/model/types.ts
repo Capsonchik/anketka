@@ -5,6 +5,7 @@ export type TeamUser = {
   firstName: string
   lastName: string
   email: string
+  phone?: string | null
   company: TeamUserCompany
   role: UserRole
   note: string | null
@@ -33,5 +34,16 @@ export type MeResponse = {
 export type TeamUserDetailsResponse = {
   user: TeamUser
   password: string | null
+}
+
+export type TeamUsersImportError = {
+  row: number
+  message: string
+}
+
+export type TeamUsersImportResponse = {
+  created: number
+  skipped: number
+  errors?: TeamUsersImportError[]
 }
 

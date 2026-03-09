@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ForwardRefExoticComponent, PropsWithoutRef, RefAttributes } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 import { DatePicker, Input, Modal, SelectPicker } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import type { AuditorCreateRequest, AuditorImportResponse, AuditorItem, AuditorGender, AuditorsResponse } from '@/entities/auditor'
-import { Button } from '@/shared/ui'
 
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
 import styles from './TeamAuditorsTab.module.css'
@@ -63,7 +64,14 @@ function formatName (a: AuditorItem): string {
   return [a.lastName, a.firstName, a.middleName].filter(Boolean).join(' ')
 }
 
-export function TeamAuditorsTab ({ isAdmin }: { isAdmin: boolean }) {
+export type TeamAuditorsTabHandle = {
+  openCreate: () => void
+  openImport: () => void
+}
+
+export const TeamAuditorsTab: ForwardRefExoticComponent<
+  PropsWithoutRef<{ isAdmin: boolean }> & RefAttributes<TeamAuditorsTabHandle>
+> = forwardRef<TeamAuditorsTabHandle, { isAdmin: boolean }>(function TeamAuditorsTab ({ isAdmin }, ref) {
   const [items, setItems] = useState<AuditorItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -133,6 +141,16 @@ export function TeamAuditorsTab ({ isAdmin }: { isAdmin: boolean }) {
     setCreateForm(initialForm)
     setIsCreateOpen(true)
   }
+
+  function openImport () {
+    if (!isAdmin) return
+    setImportError(null)
+    setImportResult(null)
+    setSelectedImportFileName(null)
+    setIsImportOpen(true)
+  }
+
+  useImperativeHandle(ref, () => ({ openCreate, openImport }), [isAdmin])
 
   function openEdit (a: AuditorItem) {
     setEditError(null)
@@ -285,39 +303,18 @@ export function TeamAuditorsTab ({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div>
-      <div className={styles.sectionHeader}>
-        <div className={styles.sectionTitle}>Аудиторы</div>
-        <div className={styles.actions}>
-          <input
-            ref={fileRef}
-            className={styles.fileInput}
-            type="file"
-            accept=".xlsx"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (!f) return
-              setSelectedImportFileName(f.name)
-              importXlsx(f)
-            }}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={!isAdmin || isImporting}
-            onClick={() => {
-              setImportError(null)
-              setImportResult(null)
-              setSelectedImportFileName(null)
-              setIsImportOpen(true)
-            }}
-          >
-            Импорт Excel
-          </Button>
-          <Button type="button" variant="primary" disabled={!isAdmin} onClick={openCreate}>
-            Добавить аудитора
-          </Button>
-        </div>
-      </div>
+      <input
+        ref={fileRef}
+        className={styles.fileInput}
+        type="file"
+        accept=".xlsx"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (!f) return
+          setSelectedImportFileName(f.name)
+          importXlsx(f)
+        }}
+      />
 
       <div className={styles.filters}>
         <Input
@@ -354,60 +351,62 @@ export function TeamAuditorsTab ({ isAdmin }: { isAdmin: boolean }) {
       ) : null}
 
       {items.length ? (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>ФИО</th>
-              <th className={styles.th}>Контакты</th>
-              <th className={styles.th}>Город</th>
-              <th className={styles.th}>Дата рождения</th>
-              <th className={styles.th}>Пол</th>
-              <th className={styles.th} />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((a) => (
-              <tr key={a.id}>
-                <td className={styles.td}>{formatName(a)}</td>
-                <td className={styles.td}>
-                  <div className={styles.mono}>{a.phone ?? '—'}</div>
-                  <div className={styles.mono}>{a.email ?? '—'}</div>
-                </td>
-                <td className={styles.td}>{a.city}</td>
-                <td className={styles.td}>
-                  <span className={styles.mono}>{a.birthDate ?? '—'}</span>
-                </td>
-                <td className={styles.td}>
-                  <span className={styles.mono}>{genderLabel(a.gender)}</span>
-                </td>
-                <td className={styles.td}>
-                  <div className={styles.rowActions}>
-                    <button
-                      type="button"
-                      className={styles.iconButton}
-                      disabled={!isAdmin}
-                      onClick={() => openEdit(a)}
-                      aria-label="Редактировать"
-                      title="Редактировать"
-                    >
-                      <PencilIcon />
-                    </button>
-                    <button
-                      type="button"
-                      className={`${styles.iconButton} ${styles.iconButtonDanger}`.trim()}
-                      disabled={!isAdmin}
-                      onClick={() => deleteAuditor(a.id)}
-                      aria-label="Удалить"
-                      title="Удалить"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                </td>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>ФИО</th>
+                <th className={styles.th}>Контакты</th>
+                <th className={styles.th}>Город</th>
+                <th className={styles.th}>Дата рождения</th>
+                <th className={styles.th}>Пол</th>
+                <th className={styles.th} />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((a) => (
+                <tr key={a.id}>
+                  <td className={styles.td}>{formatName(a)}</td>
+                  <td className={styles.td}>
+                    <div className={styles.mono}>{a.phone ?? '—'}</div>
+                    <div className={styles.mono}>{a.email ?? '—'}</div>
+                  </td>
+                  <td className={styles.td}>{a.city}</td>
+                  <td className={styles.td}>
+                    <span className={styles.mono}>{a.birthDate ?? '—'}</span>
+                  </td>
+                  <td className={styles.td}>
+                    <span className={styles.mono}>{genderLabel(a.gender)}</span>
+                  </td>
+                  <td className={styles.td}>
+                    <div className={styles.rowActions}>
+                      <button
+                        type="button"
+                        className={styles.iconButton}
+                        disabled={!isAdmin}
+                        onClick={() => openEdit(a)}
+                        aria-label="Редактировать"
+                        title="Редактировать"
+                      >
+                      <Image src="/icons/edit.svg" alt="" width={16} height={16} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.iconButton} ${styles.iconButtonDanger}`.trim()}
+                        disabled={!isAdmin}
+                        onClick={() => deleteAuditor(a.id)}
+                        aria-label="Удалить"
+                        title="Удалить"
+                      >
+                      <Image src="/icons/trash.svg" alt="" width={16} height={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
 
       <Modal open={isImportOpen} onClose={() => setIsImportOpen(false)} size="lg">
@@ -467,14 +466,14 @@ export function TeamAuditorsTab ({ isAdmin }: { isAdmin: boolean }) {
             </div>
 
             <div className={styles.fileLine}>
-              <Button
+              <button
                 type="button"
-                variant="primary"
+                className={`${styles.actionButton} ${styles.actionButtonPrimary}`.trim()}
                 disabled={!isAdmin || isImporting}
                 onClick={() => fileRef.current?.click()}
               >
                 Выбрать файл .xlsx
-              </Button>
+              </button>
               <div className={styles.fileName}>
                 {selectedImportFileName ? (
                   <>
@@ -508,9 +507,9 @@ export function TeamAuditorsTab ({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" variant="ghost" onClick={() => setIsImportOpen(false)}>
+          <button type="button" className={styles.actionButton} onClick={() => setIsImportOpen(false)}>
             Закрыть
-          </Button>
+          </button>
         </Modal.Footer>
       </Modal>
 
@@ -574,12 +573,17 @@ export function TeamAuditorsTab ({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>
+          <button type="button" className={styles.actionButton} onClick={() => setIsCreateOpen(false)}>
             Отмена
-          </Button>
-          <Button type="button" variant="primary" disabled={!isAdmin || isCreating} onClick={submitCreate}>
+          </button>
+          <button
+            type="button"
+            className={`${styles.actionButton} ${styles.actionButtonPrimary}`.trim()}
+            disabled={!isAdmin || isCreating}
+            onClick={submitCreate}
+          >
             Сохранить
-          </Button>
+          </button>
         </Modal.Footer>
       </Modal>
 
@@ -649,43 +653,22 @@ export function TeamAuditorsTab ({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" variant="ghost" onClick={() => setIsEditOpen(false)}>
+          <button type="button" className={styles.actionButton} onClick={() => setIsEditOpen(false)}>
             Отмена
-          </Button>
-          <Button type="button" variant="primary" disabled={!isAdmin || isEditing} onClick={submitEdit}>
+          </button>
+          <button
+            type="button"
+            className={`${styles.actionButton} ${styles.actionButtonPrimary}`.trim()}
+            disabled={!isAdmin || isEditing}
+            onClick={submitEdit}
+          >
             Сохранить
-          </Button>
+          </button>
         </Modal.Footer>
       </Modal>
     </div>
   )
-}
+})
 
-function PencilIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
-function TrashIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 3h6m-8 4h10m-9 0 .7 14h6.6L16 7M10 11v7m4-7v7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 

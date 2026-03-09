@@ -1,5 +1,5 @@
 .modalBody {
-  padding: 8px 2px 2px;
+  padding: 10px 2px 2px;
 }
 
 .content {
@@ -23,7 +23,7 @@
   color: rgba(255, 255, 255, 0.98);
   display: grid;
   place-items: center;
-  font-weight: 750;
+  font-weight: 650;
   letter-spacing: 0.04em;
   font-size: 42px;
   user-select: none;
@@ -37,6 +37,7 @@
 .fullName {
   font-size: 18px;
   line-height: 1.1;
+  font-weight: 600;
 }
 
 .roleBadge {
@@ -47,7 +48,7 @@
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.98);
   background: linear-gradient(135deg, rgba(64, 121, 244, 0.92), rgba(143, 92, 246, 0.92));
   box-shadow: 0 10px 26px rgba(64, 121, 244, 0.22);
@@ -71,7 +72,7 @@
 
 .label {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   opacity: 0.72;
 }
 
@@ -87,8 +88,43 @@
 .error {
   margin-top: 10px;
   color: rgba(218, 60, 60, 0.92);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 12px;
+}
+
+.footerActions {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.iconButton {
+  height: 34px;
+  width: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iconButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
+.iconButtonDanger:hover {
+  background: rgba(218, 60, 60, 0.08);
+}
+
+.iconButtonPrimary:hover {
+  background: rgba(20, 140, 90, 0.08);
 }
 
 @media (max-width: 560px) {

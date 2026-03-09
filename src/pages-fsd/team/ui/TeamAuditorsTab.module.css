@@ -8,14 +8,42 @@
 
 .sectionTitle {
   font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  font-weight: 500;
 }
 
 .actions {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.actionButton {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.actionButtonPrimary {
+  border-color: rgba(66, 170, 255, 0.22);
+  background: rgba(66, 170, 255, 0.12);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .actionButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
+.actionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .filters {
@@ -25,28 +53,32 @@
   gap: 10px;
 }
 
-.table {
+.tableWrap {
   margin-top: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+}
+
+.table {
   width: 100%;
   border-collapse: collapse;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  overflow: hidden;
 }
 
 .th {
   text-align: left;
   font-size: 12px;
-  font-weight: 600;
-  color: rgba(10, 20, 35, 0.7);
-  background: rgba(0, 0, 0, 0.02);
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-weight: 500;
+  color: rgba(11, 18, 32, 0.72);
+  background: rgba(255, 255, 255, 0.75);
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.08);
 }
 
 .td {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
   vertical-align: top;
   font-size: 13px;
 }
@@ -54,7 +86,7 @@
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 12px;
-  color: rgba(10, 20, 35, 0.75);
+  color: rgba(11, 18, 32, 0.72);
 }
 
 .rowActions {
@@ -64,20 +96,22 @@
 }
 
 .iconButton {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 1);
-  display: grid;
-  place-items: center;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  color: rgba(0, 0, 0, 0.75);
+  color: rgba(11, 18, 32, 0.78);
+  transition: background-color 120ms ease, transform 120ms ease;
 }
 
 .iconButtonDanger {
-  border-color: rgba(218, 60, 60, 0.35);
-  color: rgba(218, 60, 60, 0.95);
+  border-color: rgba(218, 60, 60, 0.28);
+  color: rgba(218, 60, 60, 0.92);
 }
 
 .iconButton:disabled {
@@ -85,23 +119,34 @@
   cursor: default;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .iconButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
+
+  .iconButtonDanger:hover {
+    background: rgba(218, 60, 60, 0.08);
+  }
+}
+
 .hint {
   margin-top: 10px;
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .error {
   margin-top: 10px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: rgba(218, 60, 60, 0.92);
 }
 
 .success {
   margin-top: 10px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: rgba(20, 140, 90, 0.92);
 }
 
@@ -121,10 +166,10 @@
 }
 
 .importTableWrap {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 14px;
   overflow: auto;
-  background: rgba(255, 255, 255, 1);
+  background: rgba(255, 255, 255, 0.75);
 }
 
 .importTable {
@@ -136,18 +181,18 @@
 .importTh {
   text-align: left;
   font-size: 12px;
-  font-weight: 600;
-  color: rgba(10, 20, 35, 0.7);
-  background: rgba(0, 0, 0, 0.02);
+  font-weight: 500;
+  color: rgba(11, 18, 32, 0.72);
+  background: rgba(255, 255, 255, 0.75);
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.08);
   white-space: nowrap;
 }
 
 .importThTitle {
   font-size: 12px;
-  font-weight: 600;
-  color: rgba(10, 20, 35, 0.82);
+  font-weight: 500;
+  color: rgba(11, 18, 32, 0.82);
   line-height: 1.2;
 }
 
@@ -160,7 +205,7 @@
 
 .importTd {
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
   font-size: 13px;
   white-space: nowrap;
 }
@@ -174,7 +219,7 @@
 
 .fileName {
   font-size: 12px;
-  color: rgba(10, 20, 35, 0.7);
+  color: rgba(11, 18, 32, 0.72);
 }
 
 .importDetails {
@@ -186,8 +231,8 @@
 .errorList {
   max-height: 180px;
   overflow: auto;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 14px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.75);
 }

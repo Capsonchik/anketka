@@ -1,0 +1,107 @@
+.wrap {
+  margin-top: 14px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(11, 18, 32, 0.72);
+  padding: 12px 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.08);
+}
+
+.table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
+  font-size: 13px;
+}
+
+.row {
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover {
+    background: rgba(66, 170, 255, 0.06);
+  }
+}
+
+.actionsCol {
+  width: 96px;
+}
+
+.nameCell {
+  min-width: 180px;
+}
+
+.name {
+  display: inline-flex;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.email {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.phone {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.role {
+  font-weight: 500;
+  font-size: 12px;
+  opacity: 0.78;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.iconButton {
+  height: 30px;
+  width: 30px;
+  border-radius: 10px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iconButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 720px) {
+  .table th:nth-child(2),
+  .table td:nth-child(2),
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    display: none;
+  }
+}
+

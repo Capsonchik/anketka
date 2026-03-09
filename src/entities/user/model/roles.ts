@@ -1,4 +1,4 @@
-export const userRoles = ['admin', 'coordinator', 'manager', 'client', 'controller'] as const
+export const userRoles = ['admin', 'coordinator', 'manager', 'controller', 'auditor', 'client'] as const
 
 export type UserRole = (typeof userRoles)[number]
 
@@ -6,8 +6,9 @@ export const userRoleLabels: Record<UserRole, string> = {
   admin: 'Админ',
   coordinator: 'Координатор',
   manager: 'Менеджер',
-  client: 'Клиент',
   controller: 'Контроллер',
+  auditor: 'Аудитор',
+  client: 'Клиент',
 }
 
 export function userRoleLabel (role: UserRole): string {
