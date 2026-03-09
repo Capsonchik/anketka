@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
+import type { UserRole } from '@/entities/user'
 
 type UserMe = {
   id: string
   firstName: string
   lastName: string
-  role: string
+  role: UserRole
   company: {
     id: string
     name: string

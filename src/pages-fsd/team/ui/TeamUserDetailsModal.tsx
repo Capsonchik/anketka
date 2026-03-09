@@ -2,7 +2,7 @@
 
 import { Button, Modal } from 'rsuite'
 
-import { roleLabel } from '../lib/roleLabel'
+import { userRoleLabel } from '@/entities/user'
 import type { TeamUserDetailsResponse } from '../model/types'
 
 import styles from './TeamUserDetailsModal.module.css'
@@ -42,7 +42,7 @@ export function TeamUserDetailsModal ({
               <div className={styles.avatar} aria-hidden="true">
                 {initials}
               </div>
-              <div className={styles.roleBadge}>{roleLabel(user.role)}</div>
+              <div className={styles.roleBadge}>{userRoleLabel(user.role)}</div>
             </div>
 
             <div className={styles.right}>

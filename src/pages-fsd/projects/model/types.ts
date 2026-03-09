@@ -40,10 +40,10 @@ export type TeamUsersResponse = {
   items: TeamUserItem[]
 }
 
-export type Role = 'admin' | 'coordinator' | 'manager'
+import type { UserRole } from '@/entities/user'
 
 export type MeResponse = {
   id: string
-  role: Role
+  role: UserRole
 }
 

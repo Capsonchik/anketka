@@ -5,10 +5,12 @@ import { Input, SelectPicker } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
+import type { UserRole } from '@/entities/user'
+import { userRoleOptions } from '@/entities/user'
 import { Button } from '@/shared/ui'
 
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
-import type { CreateUserResponse, MeResponse, Role, TeamUser, TeamUserDetailsResponse, TeamUsersResponse } from '../model/types'
+import type { CreateUserResponse, MeResponse, TeamUser, TeamUserDetailsResponse, TeamUsersResponse } from '../model/types'
 import { TeamAuditorsTab } from './TeamAuditorsTab'
 import { TeamCreateUserModal, type CreateUserFormState } from './TeamCreateUserModal'
 import { TeamTabs, type TeamTabKey } from './TeamTabs'
@@ -21,11 +23,11 @@ export function TeamPage () {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [myRole, setMyRole] = useState<Role | null>(null)
+  const [myRole, setMyRole] = useState<UserRole | null>(null)
   const [myCompanyId, setMyCompanyId] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all')
+  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all')
 
   const [tab, setTab] = useState<TeamTabKey>('users')
 
@@ -78,7 +80,7 @@ export function TeamPage () {
     }
   }
 
-  async function loadUsers (opts?: { q?: string; role?: Role | 'all'; companyId?: string | null }) {
+  async function loadUsers (opts?: { q?: string; role?: UserRole | 'all'; companyId?: string | null }) {
     setIsLoading(true)
     setError(null)
     try {
@@ -228,16 +230,14 @@ export function TeamPage () {
                 size='sm'
                 className={styles.select}
                 value={roleFilter}
-                onChange={(value) => setRoleFilter((value as Role | 'all') ?? 'all')}
+                onChange={(value) => setRoleFilter((value as UserRole | 'all') ?? 'all')}
                 aria-label="Фильтр по роли"
                 cleanable={false}
                 searchable={false}
                 block
                 data={[
                   { label: 'Все роли', value: 'all' },
-                  { label: 'Админ', value: 'admin' },
-                  { label: 'Координатор', value: 'coordinator' },
-                  { label: 'Менеджер', value: 'manager' },
+                  ...userRoleOptions,
                 ]}
               />
             </div>

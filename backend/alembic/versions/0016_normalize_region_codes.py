@@ -1,23 +1,25 @@
-"""create projects and reference tables
+"""normalize region codes to subject codes (01-95)
 
-Revision ID: 0005_projects_refs
-Revises: 0004_user_temp_password
-Create Date: 2026-03-04
+Fixes legacy reference data where region codes were seeded as vehicle plate codes
+(e.g. 99/177/777 for Moscow, 93 for Krasnodar, 90 for Moscow oblast, etc).
+
+Revision ID: 0016_normalize_region_codes
+Revises: 0015_user_roles_client_controller
+Create Date: 2026-03-09
 
 """
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 
-revision = '0005_projects_refs'
-down_revision = '0004_user_temp_password'
+revision = '0016_normalize_region_codes'
+down_revision = '0015_user_roles_client_controller'
 branch_labels = None
 depends_on = None
 
 
-REGION_SEED: list[dict[str, str]] = [
+OFFICIAL_REGIONS: list[dict[str, str]] = [
   {'code': '01', 'name': 'Республика Адыгея (Адыгея)'},
   {'code': '02', 'name': 'Республика Башкортостан'},
   {'code': '03', 'name': 'Республика Бурятия'},
@@ -109,99 +111,154 @@ REGION_SEED: list[dict[str, str]] = [
   {'code': '95', 'name': 'Херсонская область'},
 ]
 
-CITIES_SEED: list[tuple[str, str]] = [
-  ('77', 'Москва'),
-  ('78', 'Санкт-Петербург'),
-  ('66', 'Екатеринбург'),
-  ('23', 'Краснодар'),
-  ('54', 'Новосибирск'),
-  ('61', 'Ростов-на-Дону'),
-  ('23', 'Сочи'),
-  ('16', 'Казань'),
-  ('52', 'Нижний Новгород'),
-  ('63', 'Самара'),
-  ('64', 'Саратов'),
-  ('74', 'Челябинск'),
-  ('50', 'Москва (область)'),
-  ('24', 'Красноярск'),
-  ('25', 'Владивосток'),
-  ('29', 'Архангельск'),
-  ('36', 'Воронеж'),
-  ('38', 'Иркутск'),
-  ('34', 'Волгоград'),
-  ('72', 'Тюмень'),
-]
-
 
 def upgrade () -> None:
-  op.execute('CREATE SCHEMA IF NOT EXISTS projects')
-
-  op.create_table(
-    'ref_region',
-    sa.Column('code', sa.String(length=3), primary_key=True, nullable=False),
-    sa.Column('name', sa.String(length=250), nullable=False),
-    schema='projects',
-  )
-  op.create_index('ix_projects_ref_region_name', 'ref_region', ['name'], schema='projects')
-
-  op.create_table(
-    'ref_city',
-    sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True, nullable=False),
-    sa.Column('region_code', sa.String(length=3), nullable=False),
-    sa.Column('name', sa.String(length=250), nullable=False),
-    sa.ForeignKeyConstraint(['region_code'], ['projects.ref_region.code'], ondelete='RESTRICT'),
-    sa.UniqueConstraint('region_code', 'name', name='uq_projects_ref_city_region_name'),
-    schema='projects',
-  )
-  op.create_index('ix_projects_ref_city_region_code', 'ref_city', ['region_code'], schema='projects')
-  op.create_index('ix_projects_ref_city_name', 'ref_city', ['name'], schema='projects')
-
-  op.create_table(
-    'project',
-    sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
-    sa.Column('company_id', postgresql.UUID(as_uuid=True), nullable=False),
-    sa.Column('manager_user_id', postgresql.UUID(as_uuid=True), nullable=False),
-    sa.Column('name', sa.String(length=200), nullable=False),
-    sa.Column('comment', sa.Text(), nullable=True),
-    sa.Column('start_date', sa.Date(), nullable=False),
-    sa.Column('end_date', sa.Date(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['company_id'], ['users.company.id'], ondelete='RESTRICT'),
-    sa.ForeignKeyConstraint(['manager_user_id'], ['users.app_user.id'], ondelete='RESTRICT'),
-    schema='projects',
-  )
-  op.create_index('ix_projects_project_company_id', 'project', ['company_id'], schema='projects')
-  op.create_index('ix_projects_project_manager_user_id', 'project', ['manager_user_id'], schema='projects')
-  op.create_index('ix_projects_project_name', 'project', ['name'], schema='projects')
-
   bind = op.get_bind()
-  for item in REGION_SEED:
+
+  official_codes = [x['code'] for x in OFFICIAL_REGIONS]
+
+  # Ensure all official regions exist + refresh names
+  for item in OFFICIAL_REGIONS:
     bind.execute(
-      sa.text('INSERT INTO projects.ref_region (code, name) VALUES (:code, :name) ON CONFLICT (code) DO NOTHING'),
+      sa.text(
+        """
+INSERT INTO projects.ref_region (code, name)
+VALUES (:code, :name)
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+""",
+      ),
       {'code': item['code'], 'name': item['name']},
     )
 
-  for region_code, city_name in CITIES_SEED:
-    bind.execute(
-      sa.text(
-        'INSERT INTO projects.ref_city (region_code, name) VALUES (:region_code, :name)'
-        ' ON CONFLICT (region_code, name) DO NOTHING',
-      ),
-      {'region_code': region_code, 'name': city_name},
-    )
+  # We will normalize region codes in ref_city; to avoid conflicts during update
+  # we temporarily drop the unique constraint and re-create it after dedupe.
+  op.drop_constraint('uq_projects_ref_city_region_name', 'ref_city', schema='projects', type_='unique')
+
+  # Explicit remaps for known conflicts and historical/plate codes.
+  # These must run before the generic "right(code,2)" rule.
+  explicit_map: dict[str, str] = {
+    # Moscow and SPB multi-codes
+    '97': '77',
+    '99': '77',
+    '177': '77',
+    '197': '77',
+    '199': '77',
+    '777': '77',
+    '797': '77',
+    '799': '77',
+    '977': '77',
+    '98': '78',
+    '178': '78',
+    '198': '78',
+    '778': '78',
+
+    # Moscow oblast "plate codes" and legacy seed mistake (90)
+    '90': '50',
+    '150': '50',
+    '190': '50',
+    '250': '50',
+    '550': '50',
+    '750': '50',
+    '790': '50',
+
+    # Seed mistakes where codes were reused (need to free official 90-95)
+    '91': '39',  # was Kaliningrad in legacy seed
+    '93': '23',  # was Krasnodar in legacy seed
+    '95': '20',  # was Chechnya in legacy seed
+
+    # Donetsk/Luhansk/Kherson/Zaporizhzhia were stored as 180/181/184/185 in legacy seed
+    '180': '93',
+    '181': '94',
+    '184': '95',
+    '185': '90',
+
+    # HMAO had plate code 186 in legacy seed
+    '186': '86',
+
+    # Obsolete autonomous okrugs -> current parent regions (so we don't lose cities/points)
+    '80': '75',  # Агинский Бурятский АО -> Забайкальский край
+    '81': '59',  # Коми-Пермяцкий АО -> Пермский край
+    '82': '41',  # Корякский АО -> Камчатский край
+    '84': '24',  # Таймырский АО -> Красноярский край
+    '85': '38',  # Усть-Ордынский Бурятский АО -> Иркутская область
+    '88': '24',  # Эвенкийский АО -> Красноярский край
+  }
+
+  def apply_explicit_map (table: str, col: str) -> None:
+    for old, new in explicit_map.items():
+      bind.execute(sa.text(f'UPDATE projects.{table} SET {col} = :new WHERE {col} = :old'), {'old': old, 'new': new})
+
+  apply_explicit_map('ref_city', 'region_code')
+  apply_explicit_map('shop_point', 'region_code')
+
+  # Generic normalization for 3-digit plate codes (e.g. 102->02, 774->74, 702->02, 716->16, etc).
+  # We only apply it when the derived code exists in the official list.
+  codes_param = sa.bindparam('codes', expanding=True)
+  bind.execute(
+    sa.text(
+      """
+UPDATE projects.ref_city
+SET region_code = right(region_code, 2)
+WHERE
+  region_code IS NOT NULL
+  AND length(region_code) = 3
+  AND right(region_code, 2) IN :codes
+  AND region_code NOT IN :codes
+""",
+    ).bindparams(codes_param),
+    {'codes': official_codes},
+  )
+  bind.execute(
+    sa.text(
+      """
+UPDATE projects.shop_point
+SET region_code = right(region_code, 2)
+WHERE
+  region_code IS NOT NULL
+  AND length(region_code) = 3
+  AND right(region_code, 2) IN :codes
+  AND region_code NOT IN :codes
+""",
+    ).bindparams(codes_param),
+    {'codes': official_codes},
+  )
+
+  # Deduplicate cities after normalization: keep minimal id per (region_code, name)
+  bind.execute(
+    sa.text(
+      """
+DELETE FROM projects.ref_city c
+USING projects.ref_city d
+WHERE
+  c.region_code = d.region_code
+  AND c.name = d.name
+  AND c.id > d.id
+""",
+    ),
+  )
+
+  op.create_unique_constraint(
+    'uq_projects_ref_city_region_name',
+    'ref_city',
+    ['region_code', 'name'],
+    schema='projects',
+  )
+
+  # Remove non-official regions that are no longer referenced by cities
+  bind.execute(
+    sa.text(
+      """
+DELETE FROM projects.ref_region r
+WHERE
+  r.code NOT IN :codes
+  AND NOT EXISTS (SELECT 1 FROM projects.ref_city c WHERE c.region_code = r.code)
+""",
+    ).bindparams(codes_param),
+    {'codes': official_codes},
+  )
 
 
 def downgrade () -> None:
-  op.drop_index('ix_projects_project_name', table_name='project', schema='projects')
-  op.drop_index('ix_projects_project_manager_user_id', table_name='project', schema='projects')
-  op.drop_index('ix_projects_project_company_id', table_name='project', schema='projects')
-  op.drop_table('project', schema='projects')
-
-  op.drop_index('ix_projects_ref_city_name', table_name='ref_city', schema='projects')
-  op.drop_index('ix_projects_ref_city_region_code', table_name='ref_city', schema='projects')
-  op.drop_table('ref_city', schema='projects')
-
-  op.drop_index('ix_projects_ref_region_name', table_name='ref_region', schema='projects')
-  op.drop_table('ref_region', schema='projects')
+  # Data normalization is not safely reversible.
+  return None
 

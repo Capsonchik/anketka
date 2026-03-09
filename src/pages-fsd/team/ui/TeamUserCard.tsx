@@ -1,5 +1,5 @@
 import type { TeamUser } from '../model/types'
-import { roleLabel } from '../lib/roleLabel'
+import { userRoleLabel } from '@/entities/user'
 
 import styles from './TeamUserCard.module.css'
 
@@ -28,7 +28,7 @@ export function TeamUserCard ({
           <div className={styles.lastName}>{user.lastName}</div>
         </div>
         <div className={styles.email}>{user.email}</div>
-        <div className={styles.role}>{roleLabel(user.role)}</div>
+        <div className={styles.role}>{userRoleLabel(user.role)}</div>
       </div>
     </button>
   )

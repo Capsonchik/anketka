@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'coordinator' | 'manager'
+import type { UserRole } from '@/entities/user'
 
 export type TeamUser = {
   id: string
@@ -6,7 +6,7 @@ export type TeamUser = {
   lastName: string
   email: string
   company: TeamUserCompany
-  role: Role
+  role: UserRole
   note: string | null
   createdAt: string
 }
@@ -26,7 +26,7 @@ export type CreateUserResponse = {
 }
 
 export type MeResponse = {
-  role: Role
+  role: UserRole
   company: TeamUserCompany
 }
 

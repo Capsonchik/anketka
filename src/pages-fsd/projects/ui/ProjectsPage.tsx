@@ -5,10 +5,11 @@ import { Input } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
+import type { UserRole } from '@/entities/user'
 import { Button } from '@/shared/ui'
 
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
-import type { CreateProjectResponse, ProjectsResponse, TeamUsersResponse, ProjectItem, TeamUserItem, MeResponse, Role } from '../model/types'
+import type { CreateProjectResponse, ProjectsResponse, TeamUsersResponse, ProjectItem, TeamUserItem, MeResponse } from '../model/types'
 import { ProjectCreateModal, type CreateProjectFormState } from './ProjectCreateModal'
 import { ProjectCard } from './ProjectCard'
 import styles from './ProjectsPage.module.css'
@@ -25,7 +26,7 @@ export function ProjectsPage () {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [myRole, setMyRole] = useState<Role | null>(null)
+  const [myRole, setMyRole] = useState<UserRole | null>(null)
 
   const [search, setSearch] = useState('')
 

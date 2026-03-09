@@ -30,7 +30,7 @@ BEGIN
     JOIN pg_namespace n ON n.oid = t.typnamespace
     WHERE t.typname = 'user_role' AND n.nspname = 'users'
   ) THEN
-    CREATE TYPE users.user_role AS ENUM ('admin', 'coordinator', 'manager');
+    CREATE TYPE users.user_role AS ENUM ('admin', 'coordinator', 'manager', 'client', 'controller');
   END IF;
 END
 $$;
@@ -51,7 +51,7 @@ $$;
     'app_user',
     sa.Column(
       'role',
-      sa.Enum('admin', 'coordinator', 'manager', name='user_role', schema='users'),
+      sa.Enum('admin', 'coordinator', 'manager', 'client', 'controller', name='user_role', schema='users'),
       server_default='admin',
       nullable=False,
     ),

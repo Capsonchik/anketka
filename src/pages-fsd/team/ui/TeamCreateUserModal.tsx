@@ -2,13 +2,13 @@
 
 import { Button, Input, Modal, SelectPicker } from 'rsuite'
 
-import type { Role } from '../model/types'
+import { userRoleOptions, type UserRole } from '@/entities/user'
 
 export type CreateUserFormState = {
   firstName: string
   lastName: string
   email: string
-  role: Role
+  role: UserRole
   note: string
 }
 
@@ -60,15 +60,11 @@ export function TeamCreateUserModal ({
           <Field label="Роль *">
             <SelectPicker
               value={form.role}
-              onChange={(v) => onChange({ role: (v as Role) ?? 'manager' })}
+              onChange={(v) => onChange({ role: (v as UserRole) ?? 'manager' })}
               cleanable={false}
               searchable={false}
               block
-              data={[
-                { label: 'Админ', value: 'admin' },
-                { label: 'Координатор', value: 'coordinator' },
-                { label: 'Менеджер', value: 'manager' },
-              ]}
+              data={userRoleOptions}
             />
           </Field>
 

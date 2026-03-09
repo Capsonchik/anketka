@@ -153,6 +153,46 @@ def _norm_optional (value: object | None) -> str | None:
 def _lower_key (value: str) -> str:
   return _norm_str(value).lower().replace('ё', 'е')
 
+_REGION_CODE_ALIASES: dict[str, str] = {
+  # Moscow and SPB multi-codes (vehicle plates)
+  '97': '77',
+  '99': '77',
+  '177': '77',
+  '197': '77',
+  '199': '77',
+  '777': '77',
+  '797': '77',
+  '799': '77',
+  '977': '77',
+  '98': '78',
+  '178': '78',
+  '198': '78',
+  '778': '78',
+
+  # Moscow oblast (vehicle plates)
+  '150': '50',
+  '190': '50',
+  '250': '50',
+  '550': '50',
+  '750': '50',
+  '790': '50',
+
+  # Legacy seeds for new regions
+  '180': '93',
+  '181': '94',
+  '184': '95',
+  '185': '90',
+  '186': '86',
+
+  # Obsolete autonomous okrugs -> parent regions
+  '80': '75',
+  '81': '59',
+  '82': '41',
+  '84': '24',
+  '85': '38',
+  '88': '24',
+}
+
 def _make_autocode (*parts: object | None) -> str | None:
   cleaned: list[str] = []
   for p in parts:
@@ -178,6 +218,29 @@ class _AddressbookRefResolver:
     self._db = db
     self._city_cache: dict[str, tuple[str | None, str | None]] = {}
     self._region_cache: dict[str, str | None] = {}
+
+  async def _normalize_region_code (self, raw: str) -> str:
+    code = raw.strip()
+    if not code.isdigit():
+      return code
+
+    code = _REGION_CODE_ALIASES.get(code, code)
+
+    # Accept 3-digit plate codes by trying last 2 digits if such subject code exists.
+    if len(code) == 3:
+      candidate = code[-2:]
+      exists = await self._db.execute(select(RefRegion.code).where(RefRegion.code == candidate))
+      if exists.scalar_one_or_none() is not None:
+        return candidate
+
+    # Accept "1" as "01" (if it exists in regions)
+    if len(code) == 1:
+      candidate = code.zfill(2)
+      exists = await self._db.execute(select(RefRegion.code).where(RefRegion.code == candidate))
+      if exists.scalar_one_or_none() is not None:
+        return candidate
+
+    return code
 
   def _key (self, value: str) -> str:
     return _lower_key(value).strip()
@@ -211,9 +274,11 @@ class _AddressbookRefResolver:
         return (cached, None)
 
       is_code = region_norm.strip().isdigit() and len(region_norm.strip()) <= 3
-      stmt = select(RefRegion).where(RefRegion.code == region_norm.strip()) if is_code else select(RefRegion).where(
-        func.replace(func.lower(RefRegion.name), 'ё', 'е') == key,
-      )
+      if is_code:
+        code = await self._normalize_region_code(region_norm)
+        stmt = select(RefRegion).where(RefRegion.code == code)
+      else:
+        stmt = select(RefRegion).where(func.replace(func.lower(RefRegion.name), 'ё', 'е') == key)
       res = await self._db.execute(stmt)
       region_row = res.scalar_one_or_none()
       region_code = region_row.code if region_row is not None else None
@@ -1591,7 +1656,21 @@ async def list_cities (
 ) -> RefCitiesResponse:
   stmt = select(RefCity)
   if regionCode:
-    stmt = stmt.where(RefCity.region_code == regionCode.strip())
+    code = regionCode.strip()
+    if code.isdigit():
+      code = _REGION_CODE_ALIASES.get(code, code)
+      if len(code) == 3:
+        candidate = code[-2:]
+        exists = await db.execute(select(RefRegion.code).where(RefRegion.code == candidate))
+        if exists.scalar_one_or_none() is not None:
+          code = candidate
+      if len(code) == 1:
+        candidate = code.zfill(2)
+        exists = await db.execute(select(RefRegion.code).where(RefRegion.code == candidate))
+        if exists.scalar_one_or_none() is not None:
+          code = candidate
+
+    stmt = stmt.where(RefCity.region_code == code)
   stmt = stmt.order_by(RefCity.name.asc())
 
   res = await db.execute(stmt)

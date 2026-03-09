@@ -5,10 +5,10 @@ import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import type { AuditorGender, AuditorItem, AuditorsResponse } from '@/entities/auditor'
 import type { ProjectSurveysResponse, SurveyItem } from '@/entities/survey'
+import type { UserRole } from '@/entities/user'
 import { Button } from '@/shared/ui'
 
 import { getApiErrorMessage } from '../../lib/getApiErrorMessage'
-import type { Role } from '../../model/types'
 import styles from '../ProjectPage.module.css'
 
 type AssignedByItem = { id: string; firstName: string; lastName: string; email: string }
@@ -49,7 +49,7 @@ function assignmentStatusLabel (s: string): string {
 }
 
 export function ProjectAssignmentsTab ({ projectId }: { projectId: string }) {
-  const [myRole, setMyRole] = useState<Role | null>(null)
+  const [myRole, setMyRole] = useState<UserRole | null>(null)
 
   const [surveys, setSurveys] = useState<SurveyItem[]>([])
   const [surveysError, setSurveysError] = useState<string | null>(null)
@@ -81,7 +81,7 @@ export function ProjectAssignmentsTab ({ projectId }: { projectId: string }) {
     let isAlive = true
     ;(async () => {
       try {
-        const me = await axiosMainRequest.get<{ role: Role }>(apiRoutes.users.me)
+        const me = await axiosMainRequest.get<{ role: UserRole }>(apiRoutes.users.me)
         if (!isAlive) return
         setMyRole(me.data.role)
       } catch {

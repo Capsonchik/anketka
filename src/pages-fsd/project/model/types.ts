@@ -5,8 +5,6 @@ export type ProjectManagerPublic = {
   email: string
 }
 
-export type Role = 'admin' | 'coordinator' | 'manager'
-
 export type ProjectItem = {
   id: string
   name: string
