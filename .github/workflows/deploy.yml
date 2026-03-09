@@ -23,13 +23,35 @@ jobs:
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
+      - name: Prepare SSH connection variables
+        run: |
+          HOST="${{ secrets.DEPLOY_SSH_HOST }}"
+          USER="${{ secrets.DEPLOY_SSH_USER }}"
+          PORT="${{ secrets.DEPLOY_SSH_PORT }}"
+
+          if [ -z "$HOST" ]; then
+            echo "Missing secret: DEPLOY_SSH_HOST"
+            exit 1
+          fi
+          if [ -z "$USER" ]; then
+            echo "Missing secret: DEPLOY_SSH_USER"
+            exit 1
+          fi
+          if [ -z "$PORT" ]; then
+            PORT="22"
+          fi
+
+          echo "DEPLOY_HOST=$HOST" >> "$GITHUB_ENV"
+          echo "DEPLOY_USER=$USER" >> "$GITHUB_ENV"
+          echo "DEPLOY_PORT=$PORT" >> "$GITHUB_ENV"
+
       - name: Add host to known_hosts
         run: |
-          ssh-keyscan -p "${{ secrets.DEPLOY_SSH_PORT }}" "${{ secrets.DEPLOY_SSH_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Run remote deploy script
         run: |
-          ssh -p "${{ secrets.DEPLOY_SSH_PORT }}" \
-            "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}" \
+          ssh -p "$DEPLOY_PORT" \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
             "bash /opt/anketka/scripts/deploy.sh"
 
