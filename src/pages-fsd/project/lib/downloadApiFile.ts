@@ -22,16 +22,47 @@ function extractFilename (contentDisposition: string | undefined | null) {
 export async function downloadApiFile ({
   url,
   params,
+  headers,
   fallbackFilename,
 }: {
   url: string
   params?: Record<string, string | number | boolean | null | undefined>
+  headers?: Record<string, string>
   fallbackFilename: string
 }) {
   const res = await axiosMainRequest.get<Blob>(url, {
     params,
+    headers,
     responseType: 'blob',
   })
+
+  const contentType = String((res.headers as Record<string, string | undefined>)['content-type'] ?? '')
+  if (contentType.includes('application/json')) {
+    const text = await res.data.text()
+    let message = text
+    try {
+      const parsed = JSON.parse(text) as { detail?: unknown }
+      if (Array.isArray(parsed.detail)) {
+        message = parsed.detail
+          .map((d) => {
+            if (typeof d === 'string') return d
+            if (d && typeof d === 'object') {
+              const msg = (d as any).msg
+              const loc = (d as any).loc
+              return msg ? `${msg}${loc ? ` (${String(loc)})` : ''}` : JSON.stringify(d)
+            }
+            return String(d)
+          })
+          .slice(0, 5)
+          .join('; ')
+      } else if (typeof parsed.detail === 'string') {
+        message = parsed.detail
+      }
+    } catch {
+      // keep raw text
+    }
+    throw new Error(message || 'Не удалось скачать файл')
+  }
 
   const cd = (res.headers as Record<string, string | undefined>)['content-disposition']
   const filename = extractFilename(cd) ?? fallbackFilename

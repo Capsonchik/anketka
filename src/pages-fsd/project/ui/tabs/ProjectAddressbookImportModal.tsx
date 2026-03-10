@@ -32,7 +32,7 @@ export function ProjectAddressbookImportModal ({
         <div className={styles.hintSoft}>
           Выберите файл <span style={{ fontWeight: 600 }}>.xlsx</span> или <span style={{ fontWeight: 600 }}>.csv</span> — загрузка начнётся автоматически.
           <br />
-          Обязательная колонка: <span style={{ fontWeight: 600 }}>code</span> (код точки).
+          Колонка <span style={{ fontWeight: 600 }}>code</span> (код точки) — опционально. Если не заполнена, код будет сгенерирован автоматически.
         </div>
 
         <input

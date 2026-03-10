@@ -41,6 +41,7 @@ export function ProjectAddressbookTab ({
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [editPoint, setEditPoint] = useState<ShopPointItem | null>(null)
 
   const [refsError, setRefsError] = useState<string | null>(null)
@@ -152,18 +153,24 @@ export function ProjectAddressbookTab ({
               className={styles.actionButton}
               onClick={async () => {
                 setIsExporting(true)
+                setExportError(null)
                 try {
                   await downloadApiFile({
                     url: apiRoutes.projects.addressbookExport(projectId),
                     params: {
-                      code: codeQ.trim() || null,
-                      q: q.trim() || null,
+                      q: [codeQ.trim(), q.trim()].filter(Boolean).join(' ') || null,
                       chainId: chainId ?? null,
-                      cityName: cityName ?? null,
+                      city: cityName ?? null,
                       regionCode: regionCode ?? null,
+                      format: 'xlsx',
                     },
                     fallbackFilename: 'addressbook.xlsx',
+                    headers: {
+                      accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    },
                   })
+                } catch (err: unknown) {
+                  setExportError(err instanceof Error ? err.message : 'Не удалось выгрузить Excel')
                 } finally {
                   setIsExporting(false)
                 }
@@ -181,6 +188,7 @@ export function ProjectAddressbookTab ({
         {isPointsLoading ? <div className={styles.hint} style={{ marginTop: 10 }}>Загрузка точек…</div> : null}
         {pointsError ? <div className={styles.error} style={{ marginTop: 10 }}>{pointsError}</div> : null}
         {refsError ? <div className={styles.error} style={{ marginTop: 10 }}>{refsError}</div> : null}
+        {exportError ? <div className={styles.error} style={{ marginTop: 10 }}>Экспорт: {exportError}</div> : null}
 
         {hasPoints ? (
           <div className={styles.filtersRow}>

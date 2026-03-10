@@ -41,6 +41,7 @@ export function ProjectChecklistsTab ({
   const [active, setActive] = useState<ChecklistItemPublic | null>(null)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [renameTarget, setRenameTarget] = useState<ChecklistItemPublic | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
 
@@ -73,15 +74,22 @@ export function ProjectChecklistsTab ({
               className={styles.actionButton}
               onClick={async () => {
                 setIsExporting(true)
+                setExportError(null)
                 try {
                   await downloadApiFile({
                     url: apiRoutes.projects.checklistsExport(projectId),
                     params: {
                       q: q.trim() || null,
                       chainId: chainId ?? null,
+                      format: 'xlsx',
                     },
                     fallbackFilename: 'checklists.xlsx',
+                    headers: {
+                      accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    },
                   })
+                } catch (err: unknown) {
+                  setExportError(err instanceof Error ? err.message : 'Не удалось выгрузить Excel')
                 } finally {
                   setIsExporting(false)
                 }
@@ -98,6 +106,7 @@ export function ProjectChecklistsTab ({
 
         {isChecklistsLoading ? <div className={styles.hint} style={{ marginTop: 10 }}>Загрузка чек-листов…</div> : null}
         {checklistsError ? <div className={styles.error} style={{ marginTop: 10 }}>{checklistsError}</div> : null}
+        {exportError ? <div className={styles.error} style={{ marginTop: 10 }}>Экспорт: {exportError}</div> : null}
 
         {checklists.length > 0 ? (
           <div className={styles.formRow} style={{ marginTop: 10 }}>

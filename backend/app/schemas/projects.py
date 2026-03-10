@@ -88,6 +88,7 @@ class AddressbookUploadResponse(BaseModel):
   updated: int
 
 class AddressbookPointCreateRequest(BaseModel):
+  code: str | None = Field(default=None, max_length=120, description='Код точки (опционально). Если не задан — будет сгенерирован.')
   chainName: str = Field(min_length=1, max_length=250)
   address: str = Field(min_length=1, max_length=5000)
   region: str | None = Field(default=None, max_length=250)
@@ -95,6 +96,7 @@ class AddressbookPointCreateRequest(BaseModel):
   concat: str | None = Field(default=None, max_length=5000)
 
 class AddressbookPointUpdateRequest(BaseModel):
+  code: str | None = Field(default=None, max_length=120, description='Новый код точки (опционально). Если не задан — код не меняется.')
   chainName: str = Field(min_length=1, max_length=250)
   address: str = Field(min_length=1, max_length=5000)
   region: str | None = Field(default=None, max_length=250)

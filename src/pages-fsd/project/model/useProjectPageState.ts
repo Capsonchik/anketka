@@ -12,6 +12,7 @@ import type {
   ChecklistsResponse,
   ProjectResponse,
   ShopPointsResponse,
+  ShopPointItem,
 } from './types'
 
 export function useProjectPageState (projectId: string) {
@@ -122,7 +123,7 @@ export function useProjectPageState (projectId: string) {
     setUploadMessage(null)
     setIsCreatingPoint(true)
     try {
-      await axiosMainRequest.post(apiRoutes.projects.addressbookPointCreate(projectId), {
+      const res = await axiosMainRequest.post<ShopPointItem>(apiRoutes.projects.addressbookPointCreate(projectId), {
         code: payload.code?.trim() || null,
         chainName: payload.chainName,
         address: payload.address,
@@ -131,7 +132,7 @@ export function useProjectPageState (projectId: string) {
         concat: payload.concat ?? null,
       })
       setUploadMessage('Точка добавлена')
-      await loadPoints()
+      setPoints((prev) => [res.data, ...prev])
     } catch (err: unknown) {
       setUploadError(getApiErrorMessage(err))
     } finally {
@@ -144,7 +145,7 @@ export function useProjectPageState (projectId: string) {
     setUploadMessage(null)
     setIsCreatingPoint(true)
     try {
-      await axiosMainRequest.patch(apiRoutes.projects.addressbookPoint(projectId, pointId), {
+      const res = await axiosMainRequest.patch<ShopPointItem>(apiRoutes.projects.addressbookPoint(projectId, pointId), {
         code: payload.code?.trim() || null,
         chainName: payload.chainName,
         address: payload.address,
@@ -153,7 +154,7 @@ export function useProjectPageState (projectId: string) {
         concat: payload.concat ?? null,
       })
       setUploadMessage('Точка обновлена')
-      await loadPoints()
+      setPoints((prev) => prev.map((p) => (p.id === pointId ? res.data : p)))
     } catch (err: unknown) {
       setUploadError(getApiErrorMessage(err))
     } finally {

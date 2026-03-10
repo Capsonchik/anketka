@@ -29,6 +29,7 @@ export function ProjectChecklistDetailsModal ({
   const [category, setCategory] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [editItemId, setEditItemId] = useState<string | null>(null)
   const [draft, setDraft] = useState<ChecklistItemUpdateRequest | null>(null)
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -111,6 +112,7 @@ export function ProjectChecklistDetailsModal ({
                   onClick={async () => {
                     if (!checklist) return
                     setIsExporting(true)
+                    setExportError(null)
                     try {
                       await downloadApiFile({
                         url: apiRoutes.projects.checklistItemsExport(projectId, checklist.id),
@@ -118,9 +120,15 @@ export function ProjectChecklistDetailsModal ({
                           q: q.trim() || null,
                           brand: brand ?? null,
                           category: category ?? null,
+                          format: 'xlsx',
                         },
                         fallbackFilename: 'checklist-items.xlsx',
+                        headers: {
+                          accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        },
                       })
+                    } catch (err: unknown) {
+                      setExportError(err instanceof Error ? err.message : 'Не удалось выгрузить Excel')
                     } finally {
                       setIsExporting(false)
                     }
@@ -311,6 +319,8 @@ export function ProjectChecklistDetailsModal ({
                   </tbody>
                 </table>
               </div>
+
+              {exportError ? <div className={styles.error} style={{ marginTop: 10 }}>Экспорт: {exportError}</div> : null}
             </>
           ) : null}
         </Modal.Body>

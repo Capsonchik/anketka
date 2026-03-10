@@ -5,6 +5,7 @@ import os
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -621,8 +622,16 @@ async def create_addressbook_point (
 
   chain = await _get_or_create_chain(db, current_user.company_id, payload.chainName)
 
-  base_code = _make_autocode(payload.chainName, region_code or payload.region, city_name or payload.city, payload.address, payload.concat)
-  code = await _make_unique_point_code(db, project_id, base_code or '')
+  desired = _norm_optional(payload.code)
+  if desired:
+    # enforce uniqueness within project
+    exists = await db.execute(select(ShopPoint.id).where(ShopPoint.project_id == project_id, ShopPoint.code == desired))
+    if exists.scalar_one_or_none() is not None:
+      raise HTTPException(status_code=400, detail='Код точки уже используется в этом проекте')
+    code = desired
+  else:
+    base_code = _make_autocode(payload.chainName, region_code or payload.region, city_name or payload.city, payload.address, payload.concat)
+    code = await _make_unique_point_code(db, project_id, base_code or '')
 
   point = ShopPoint(
     project_id=project_id,
@@ -667,6 +676,19 @@ async def update_addressbook_point (
   resolver = _AddressbookRefResolver(db)
   region_code, city_name = await resolver.resolve(payload.city, payload.region)
   chain = await _get_or_create_chain(db, current_user.company_id, payload.chainName)
+
+  desired = _norm_optional(payload.code)
+  if desired and desired != point.code:
+    exists = await db.execute(
+      select(ShopPoint.id).where(
+        ShopPoint.project_id == project_id,
+        ShopPoint.code == desired,
+        ShopPoint.id != point.id,
+      ),
+    )
+    if exists.scalar_one_or_none() is not None:
+      raise HTTPException(status_code=400, detail='Код точки уже используется в этом проекте')
+    point.code = desired
 
   point.chain_id = chain.id
   point.address = payload.address.strip()
@@ -845,6 +867,181 @@ async def list_checklists (
     )
 
   return ChecklistsResponse(items=out)
+
+
+def _xlsx_bytes_from_rows (headers: list[str], rows: list[list[object | None]]) -> bytes:
+  try:
+    from openpyxl import Workbook
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f'Не удалось импортировать openpyxl: {e}')
+
+  wb = Workbook(write_only=True)
+  ws = wb.create_sheet(title='Sheet1')
+  ws.append(headers)
+  for r in rows:
+    ws.append([('' if v is None else v) for v in r])
+
+  buf = io.BytesIO()
+  wb.save(buf)
+  return buf.getvalue()
+
+
+@router.get(
+  '/{project_id}/addressbook/export',
+  summary='Экспорт адресной программы (xlsx)',
+)
+async def export_addressbook_xlsx (
+  project_id: UUID = Path(..., description='ID проекта'),
+  q: str | None = Query(default=None, description='Поиск по адресу/коду/concat'),
+  chainId: UUID | None = Query(default=None, description='Фильтр по сети'),
+  regionCode: str | None = Query(default=None, description='Фильтр по коду региона'),
+  city: str | None = Query(default=None, description='Фильтр по городу'),
+  format: str | None = Query(default=None, description='Формат (xlsx)'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+  await _get_project_or_404(db, current_user, project_id)
+
+  stmt = (
+    select(ShopPoint)
+    .options(selectinload(ShopPoint.chain))
+    .where(ShopPoint.project_id == project_id)
+    .order_by(ShopPoint.created_at.desc())
+  )
+  if chainId is not None:
+    stmt = stmt.where(ShopPoint.chain_id == chainId)
+  if regionCode:
+    stmt = stmt.where(ShopPoint.region_code == regionCode.strip())
+  if city:
+    stmt = stmt.where(func.lower(ShopPoint.city_name) == city.strip().lower())
+  if q:
+    like = f'%{q.strip()}%'
+    stmt = stmt.where(
+      func.coalesce(ShopPoint.address, '').ilike(like)
+      | ShopPoint.code.ilike(like)
+      | func.coalesce(ShopPoint.concat, '').ilike(like),
+    )
+
+  res = await db.execute(stmt)
+  items = res.scalars().all()
+
+  headers = ['code', 'chain', 'city', 'region', 'address', 'concat']
+  rows: list[list[object | None]] = []
+  for p in items:
+    rows.append([p.code, p.chain.name if p.chain else None, p.city_name, p.region_code, p.address, p.concat])
+
+  content = _xlsx_bytes_from_rows(headers, rows)
+  filename = f'addressbook-{project_id}.xlsx'
+  return StreamingResponse(
+    io.BytesIO(content),
+    media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+  )
+
+
+@router.get(
+  '/{project_id}/checklists/export',
+  summary='Экспорт чек-листов (xlsx)',
+)
+async def export_checklists_xlsx (
+  project_id: UUID = Path(..., description='ID проекта'),
+  q: str | None = Query(default=None, description='Поиск по названию/сети'),
+  chainId: UUID | None = Query(default=None, description='Фильтр по сети'),
+  format: str | None = Query(default=None, description='Формат (xlsx)'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+  await _get_project_or_404(db, current_user, project_id)
+
+  items_count = func.count(ChecklistItem.id).label('items_count')
+  stmt = (
+    select(Checklist, ShopChain, items_count)
+    .join(ShopChain, ShopChain.id == Checklist.chain_id)
+    .outerjoin(ChecklistItem, ChecklistItem.checklist_id == Checklist.id)
+    .where(Checklist.project_id == project_id)
+    .group_by(Checklist.id, ShopChain.id)
+    .order_by(Checklist.created_at.desc())
+  )
+  if chainId is not None:
+    stmt = stmt.where(Checklist.chain_id == chainId)
+  if q:
+    like = f'%{q.strip()}%'
+    stmt = stmt.where(Checklist.title.ilike(like) | ShopChain.name.ilike(like))
+
+  res = await db.execute(stmt)
+  rows_db = res.all()
+
+  headers = ['chain', 'title', 'itemsCount', 'createdAt']
+  rows: list[list[object | None]] = []
+  for checklist, chain, cnt in rows_db:
+    rows.append([chain.name if chain else None, checklist.title, int(cnt or 0), checklist.created_at.isoformat()])
+
+  content = _xlsx_bytes_from_rows(headers, rows)
+  filename = f'checklists-{project_id}.xlsx'
+  return StreamingResponse(
+    io.BytesIO(content),
+    media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+  )
+
+
+@router.get(
+  '/{project_id}/checklists/{checklist_id}/items/export',
+  summary='Экспорт позиций чек-листа (xlsx)',
+)
+async def export_checklist_items_xlsx (
+  project_id: UUID = Path(..., description='ID проекта'),
+  checklist_id: UUID = Path(..., description='ID чек-листа'),
+  q: str | None = Query(default=None, description='Поиск по категории/бренду/артикулу/названию/размеру'),
+  brand: str | None = Query(default=None, description='Фильтр по бренду'),
+  category: str | None = Query(default=None, description='Фильтр по категории'),
+  format: str | None = Query(default=None, description='Формат (xlsx)'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+  await _get_project_or_404(db, current_user, project_id)
+
+  cl_res = await db.execute(select(Checklist.id).where(Checklist.id == checklist_id, Checklist.project_id == project_id))
+  if cl_res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Чек-лист не найден')
+
+  stmt = (
+    select(ChecklistItem, RefCategory, RefProduct, RefBrand)
+    .join(RefCategory, RefCategory.id == ChecklistItem.category_id)
+    .join(RefProduct, RefProduct.id == ChecklistItem.product_id)
+    .join(RefBrand, RefBrand.id == RefProduct.brand_id)
+    .where(ChecklistItem.checklist_id == checklist_id)
+    .order_by(ChecklistItem.sort_order.asc())
+  )
+  if brand:
+    stmt = stmt.where(RefBrand.name == brand)
+  if category:
+    stmt = stmt.where(RefCategory.name == category)
+  if q:
+    like = f'%{q.strip()}%'
+    stmt = stmt.where(
+      RefCategory.name.ilike(like)
+      | RefBrand.name.ilike(like)
+      | func.coalesce(RefProduct.article, '').ilike(like)
+      | RefProduct.name.ilike(like)
+      | func.coalesce(RefProduct.size, '').ilike(like),
+    )
+
+  res = await db.execute(stmt)
+  rows_db = res.all()
+
+  headers = ['category', 'brand', 'article', 'name', 'size']
+  rows: list[list[object | None]] = []
+  for _, cat, prod, br in rows_db:
+    rows.append([cat.name, br.name, prod.article, prod.name, prod.size])
+
+  content = _xlsx_bytes_from_rows(headers, rows)
+  filename = f'checklist-items-{checklist_id}.xlsx'
+  return StreamingResponse(
+    io.BytesIO(content),
+    media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+  )
 
 
 @router.get(
