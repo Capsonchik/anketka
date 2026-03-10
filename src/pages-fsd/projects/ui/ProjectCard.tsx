@@ -49,7 +49,7 @@ export function ProjectCard ({
             onDelete()
           }}
         >
-          <img src="/icons/edit.svg" width={16} height={16} alt="" aria-hidden="true" />
+          <img src="/icons/trash.svg" width={16} height={16} alt="" aria-hidden="true" />
         </button>
       ) : null}
     </div>
