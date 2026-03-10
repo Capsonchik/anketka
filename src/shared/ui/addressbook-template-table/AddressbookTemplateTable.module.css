@@ -1,0 +1,35 @@
+.wrap {
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+.th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(11, 18, 32, 0.72);
+  padding: 12px 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border-bottom: 1px solid rgba(10, 30, 60, 0.08);
+  white-space: nowrap;
+}
+
+.td {
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.code {
+  font-variant-numeric: tabular-nums;
+}
+

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Button, DatePicker, Input, Modal, Radio, RadioGroup, SelectPicker } from 'rsuite'
 
+import { AddressbookTemplateTable } from '@/shared/ui'
+
 import type { ProjectItem, TeamUserItem } from '../model/types'
 
 export type AddressbookMode = 'none' | 'uploadNew' | 'fromProject'
@@ -151,7 +153,7 @@ export function ProjectCreateModal ({
                 </Field>
 
                 <div style={{ fontSize: 12, fontWeight: 600 }}>Шаблон адресной программы</div>
-                <TemplateTable />
+                <AddressbookTemplateTable />
               </div>
             ) : null}
 
@@ -221,61 +223,7 @@ function Field ({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function TemplateTable () {
-  const headerStyle: CSSProperties = {
-    textAlign: 'left',
-    fontSize: 12,
-    fontWeight: 600,
-    padding: '8px 10px',
-    borderBottom: '1px solid rgba(0,0,0,0.08)',
-    whiteSpace: 'nowrap',
-  }
-
-  const cellStyle: CSSProperties = {
-    fontSize: 12,
-    padding: '8px 10px',
-    borderBottom: '1px solid rgba(0,0,0,0.06)',
-    whiteSpace: 'nowrap',
-  }
-
-  const rows = [
-    {
-      name: 'ПОДРУЖКА',
-      address: 'ул.Ленина',
-      region: 'Московская область',
-      city: 'Москва',
-    },
-    {
-      name: 'ПОДРУЖКА',
-      address: 'ул.Мира',
-      region: 'Московская область',
-      city: 'Москва',
-    },
-  ]
-
-  return (
-    <div style={{ overflowX: 'auto', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10 }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640 }}>
-        <thead>
-          <tr>
-            <th style={headerStyle}>name</th>
-            <th style={headerStyle}>address</th>
-            <th style={headerStyle}>region</th>
-            <th style={headerStyle}>city</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, idx) => (
-            <tr key={idx}>
-              <td style={cellStyle}>{r.name}</td>
-              <td style={cellStyle}>{r.address}</td>
-              <td style={cellStyle}>{r.region}</td>
-              <td style={cellStyle}>{r.city}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+  return <AddressbookTemplateTable />
 }
 
 function ProjectTypeButton ({

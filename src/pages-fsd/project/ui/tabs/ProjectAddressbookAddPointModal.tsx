@@ -20,12 +20,15 @@ export function ProjectAddressbookAddPointModal ({
   regions: RefRegionItem[]
   cities: RefCityItem[]
 }) {
+  const [code, setCode] = useState('')
   const [chainName, setChainName] = useState(initialChainName ?? '')
   const [address, setAddress] = useState('')
   const [regionCode, setRegionCode] = useState<string | null>(null)
   const [cityId, setCityId] = useState<number | null>(null)
 
-  const canSubmit = useMemo(() => chainName.trim().length > 0 && address.trim().length > 0 && !isSubmitting, [address, chainName, isSubmitting])
+  const canSubmit = useMemo(() => {
+    return chainName.trim().length > 0 && address.trim().length > 0 && !isSubmitting
+  }, [address, chainName, isSubmitting])
 
   const regionOptions = useMemo(() => {
     return (regions ?? []).map((r) => ({ value: r.code, label: r.name }))
@@ -48,6 +51,10 @@ export function ProjectAddressbookAddPointModal ({
       </Modal.Header>
       <Modal.Body>
         <div style={{ display: 'grid', gap: 12 }}>
+          <Field label="Код точки (опционально)">
+            <Input value={code} onChange={(v) => setCode(String(v ?? ''))} placeholder="Например: 000123" />
+          </Field>
+
           <Field label="Сеть *">
             <Input value={chainName} onChange={(v) => setChainName(String(v ?? ''))} placeholder="Например: ПОДРУЖКА" />
           </Field>
@@ -96,6 +103,7 @@ export function ProjectAddressbookAddPointModal ({
         <Button
           appearance="primary"
           onClick={() => onSubmit({
+            code: code.trim() || null,
             chainName: chainName.trim(),
             address: address.trim(),
             city: selectedCity?.name ?? null,
@@ -113,7 +121,7 @@ export function ProjectAddressbookAddPointModal ({
 function Field ({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'grid', gap: 6 }}>
-      <div style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600 }}>{label}</div>
       {children}
     </div>
   )

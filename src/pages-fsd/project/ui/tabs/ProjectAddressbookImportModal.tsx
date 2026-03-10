@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { Modal } from 'rsuite'
 
+import { AddressbookTemplateTable } from '@/shared/ui'
+
 import styles from '../ProjectPage.module.css'
 
 export function ProjectAddressbookImportModal ({
@@ -27,8 +29,10 @@ export function ProjectAddressbookImportModal ({
         <Modal.Title>Импорт адресной программы</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        <div className={styles.hint}>
-          Выберите файл <b>.xlsx</b> или <b>.csv</b> и он будет загружен автоматически.
+        <div className={styles.hintSoft}>
+          Выберите файл <span style={{ fontWeight: 600 }}>.xlsx</span> или <span style={{ fontWeight: 600 }}>.csv</span> — загрузка начнётся автоматически.
+          <br />
+          Обязательная колонка: <span style={{ fontWeight: 600 }}>code</span> (код точки).
         </div>
 
         <input
@@ -54,12 +58,17 @@ export function ProjectAddressbookImportModal ({
           >
             Импорт Excel/CSV
           </button>
-          <div className={styles.hint} style={{ marginTop: 0 }}>
+          <div className={styles.hintSoft} style={{ marginTop: 0 }}>
             {selectedFileName ? `Выбран файл: ${selectedFileName}` : 'Файл не выбран'}
           </div>
         </div>
 
-        {isUploading ? <div className={styles.hint} style={{ marginTop: 10 }}>Импорт…</div> : null}
+        {isUploading ? <div className={styles.hintSoft} style={{ marginTop: 10 }}>Импорт…</div> : null}
+
+        <div className={styles.hintSoft} style={{ marginTop: 12, marginBottom: 6 }}>
+          Пример файла (первая строка — заголовки):
+        </div>
+        <AddressbookTemplateTable />
       </Modal.Body>
       <Modal.Footer>
         <button type="button" className={styles.actionButton} onClick={onClose} disabled={isUploading}>

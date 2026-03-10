@@ -29,8 +29,8 @@ export function ProjectAddressbookTab ({
   onSelectFile: (file: File | null) => void
   onUpload: () => void
   isUploading: boolean
-  onCreatePoint: (payload: { chainName: string; address: string; city?: string | null; region?: string | null; concat?: string | null }) => void
-  onUpdatePoint: (pointId: string, payload: { chainName: string; address: string; city?: string | null; region?: string | null; concat?: string | null }) => void
+  onCreatePoint: (payload: { code?: string | null; chainName: string; address: string; city?: string | null; region?: string | null; concat?: string | null }) => void
+  onUpdatePoint: (pointId: string, payload: { code?: string | null; chainName: string; address: string; city?: string | null; region?: string | null; concat?: string | null }) => void
   onDeletePoint: (pointId: string) => void
   isCreatingPoint: boolean
   points: ShopPointItem[]
@@ -51,6 +51,7 @@ export function ProjectAddressbookTab ({
   const [chainId, setChainId] = useState<string | null>(null)
   const [cityName, setCityName] = useState<string | null>(null)
   const [regionCode, setRegionCode] = useState<string | null>(null)
+  const [codeQ, setCodeQ] = useState('')
   const [q, setQ] = useState('')
 
   const hasPoints = points.length > 0
@@ -82,8 +83,10 @@ export function ProjectAddressbookTab ({
   }, [points])
 
   const filteredPoints = useMemo(() => {
+    const codeQuery = codeQ.trim().toLowerCase()
     const query = q.trim().toLowerCase()
     return points.filter((p) => {
+      if (codeQuery && String(p.code || '').toLowerCase().includes(codeQuery) === false) return false
       if (chainId && p.chain?.id !== chainId) return false
       if (cityName && (p.cityName || '').trim() !== cityName) return false
       if (regionCode && (p.regionCode || '').trim() !== regionCode) return false
@@ -102,7 +105,7 @@ export function ProjectAddressbookTab ({
 
       return hay.includes(query)
     })
-  }, [chainId, cityName, points, q, regionCode])
+  }, [chainId, cityName, codeQ, points, q, regionCode])
 
   async function ensureRefsLoaded () {
     if (regions.length > 0 && cities.length > 0) return
@@ -153,6 +156,7 @@ export function ProjectAddressbookTab ({
                   await downloadApiFile({
                     url: apiRoutes.projects.addressbookExport(projectId),
                     params: {
+                      code: codeQ.trim() || null,
                       q: q.trim() || null,
                       chainId: chainId ?? null,
                       cityName: cityName ?? null,
@@ -179,7 +183,14 @@ export function ProjectAddressbookTab ({
         {refsError ? <div className={styles.error} style={{ marginTop: 10 }}>{refsError}</div> : null}
 
         {hasPoints ? (
-          <div className={styles.formRow} style={{ marginTop: 10 }}>
+          <div className={styles.filtersRow}>
+            <Input
+              size="sm"
+              value={codeQ}
+              onChange={(v) => setCodeQ(String(v ?? ''))}
+              placeholder="Код точки"
+              style={{ width: '100%' }}
+            />
             <SelectPicker
               size="sm"
               value={chainId}
@@ -188,7 +199,8 @@ export function ProjectAddressbookTab ({
               searchable
               placeholder="Сеть"
               data={chainOptions}
-              style={{ minWidth: 220 }}
+              block
+              style={{ width: '100%' }}
             />
             <SelectPicker
               size="sm"
@@ -198,7 +210,8 @@ export function ProjectAddressbookTab ({
               searchable
               placeholder="Город"
               data={cityOptions}
-              style={{ minWidth: 220 }}
+              block
+              style={{ width: '100%' }}
             />
             <SelectPicker
               size="sm"
@@ -208,14 +221,15 @@ export function ProjectAddressbookTab ({
               searchable
               placeholder="Регион"
               data={regionOptions}
-              style={{ minWidth: 160 }}
+              block
+              style={{ width: '100%' }}
             />
             <Input
               size="sm"
               value={q}
               onChange={(v) => setQ(String(v ?? ''))}
               placeholder="Поиск по адресу…"
-              style={{ minWidth: 260, flex: 1 }}
+              style={{ width: '100%' }}
             />
           </div>
         ) : null}
@@ -224,6 +238,7 @@ export function ProjectAddressbookTab ({
           <table className={styles.table}>
             <thead>
               <tr>
+                <th className={styles.th}>Код</th>
                 <th className={styles.th}>Сеть</th>
                 <th className={styles.th}>Город</th>
                 <th className={styles.th}>Регион</th>
@@ -234,6 +249,7 @@ export function ProjectAddressbookTab ({
             <tbody>
               {filteredPoints.map((p) => (
                 <tr key={p.id}>
+                  <td className={styles.td}>{p.code || ''}</td>
                   <td className={styles.td}>{p.chain?.name || '—'}</td>
                   <td className={styles.td}>{p.cityName || '—'}</td>
                   <td className={styles.td}>{p.regionCode || '—'}</td>
@@ -270,7 +286,7 @@ export function ProjectAddressbookTab ({
               ))}
               {filteredPoints.length === 0 && !isPointsLoading ? (
                 <tr>
-                  <td className={styles.td} colSpan={5}>Нет точек</td>
+                  <td className={styles.td} colSpan={6}>Нет точек</td>
                 </tr>
               ) : null}
             </tbody>

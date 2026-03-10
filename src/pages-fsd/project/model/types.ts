@@ -45,6 +45,7 @@ export type AddressbookUploadResponse = {
 }
 
 export type AddressbookPointCreateRequest = {
+  code?: string | null
   chainName: string
   address: string
   region?: string | null

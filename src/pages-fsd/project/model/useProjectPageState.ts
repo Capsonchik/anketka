@@ -123,6 +123,7 @@ export function useProjectPageState (projectId: string) {
     setIsCreatingPoint(true)
     try {
       await axiosMainRequest.post(apiRoutes.projects.addressbookPointCreate(projectId), {
+        code: payload.code?.trim() || null,
         chainName: payload.chainName,
         address: payload.address,
         region: payload.region ?? null,
@@ -144,6 +145,7 @@ export function useProjectPageState (projectId: string) {
     setIsCreatingPoint(true)
     try {
       await axiosMainRequest.patch(apiRoutes.projects.addressbookPoint(projectId, pointId), {
+        code: payload.code?.trim() || null,
         chainName: payload.chainName,
         address: payload.address,
         region: payload.region ?? null,

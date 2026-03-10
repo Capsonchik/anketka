@@ -20,6 +20,7 @@ export function ProjectAddressbookEditPointModal ({
   regions: RefRegionItem[]
   cities: RefCityItem[]
 }) {
+  const [code, setCode] = useState(point?.code ?? '')
   const [chainName, setChainName] = useState(point?.chain?.name ?? '')
   const [address, setAddress] = useState(point?.address ?? '')
   const [regionCode, setRegionCode] = useState<string | null>(point?.regionCode ?? null)
@@ -32,7 +33,9 @@ export function ProjectAddressbookEditPointModal ({
   })()
   const [cityId, setCityId] = useState<number | null>(initialCityId)
 
-  const canSubmit = useMemo(() => chainName.trim().length > 0 && address.trim().length > 0 && !isSubmitting, [address, chainName, isSubmitting])
+  const canSubmit = useMemo(() => {
+    return chainName.trim().length > 0 && address.trim().length > 0 && !isSubmitting
+  }, [address, chainName, isSubmitting])
 
   const regionOptions = useMemo(() => {
     return (regions ?? []).map((r) => ({ value: r.code, label: r.name }))
@@ -55,6 +58,10 @@ export function ProjectAddressbookEditPointModal ({
       </Modal.Header>
       <Modal.Body>
         <div style={{ display: 'grid', gap: 12 }}>
+          <Field label="Код точки (опционально)">
+            <Input value={code} onChange={(v) => setCode(String(v ?? ''))} />
+          </Field>
+
           <Field label="Сеть *">
             <Input value={chainName} onChange={(v) => setChainName(String(v ?? ''))} />
           </Field>
@@ -103,6 +110,7 @@ export function ProjectAddressbookEditPointModal ({
         <Button
           appearance="primary"
           onClick={() => onSubmit({
+            code: code.trim() || null,
             chainName: chainName.trim(),
             address: address.trim(),
             city: selectedCity?.name ?? null,
@@ -120,7 +128,7 @@ export function ProjectAddressbookEditPointModal ({
 function Field ({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'grid', gap: 6 }}>
-      <div style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600 }}>{label}</div>
       {children}
     </div>
   )

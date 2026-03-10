@@ -1,0 +1,2 @@
+export { AddressbookTemplateTable } from './AddressbookTemplateTable'
+
