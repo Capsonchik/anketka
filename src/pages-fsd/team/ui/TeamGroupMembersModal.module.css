@@ -1,0 +1,61 @@
+.hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.error {
+  font-size: 13px;
+  color: rgba(180, 40, 40, 1);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  align-items: center;
+}
+
+.fileInput {
+  display: none;
+}
+
+.importLine {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.result {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(20, 140, 90, 0.92);
+}
+
+.resultError {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+

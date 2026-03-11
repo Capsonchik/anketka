@@ -1,6 +1,6 @@
 import styles from './TeamTabs.module.css'
 
-export type TeamTabKey = 'users' | 'auditors'
+export type TeamTabKey = 'users' | 'groups' | 'auditors'
 
 export function TeamTabs ({
   value,
@@ -17,6 +17,13 @@ export function TeamTabs ({
         onClick={() => onChange('users')}
       >
         Участники
+      </button>
+      <button
+        type="button"
+        className={`${styles.tabButton} ${value === 'groups' ? styles.tabButtonActive : ''}`.trim()}
+        onClick={() => onChange('groups')}
+      >
+        Группы
       </button>
       <button
         type="button"

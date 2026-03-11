@@ -21,6 +21,7 @@ import { TeamUserAccessModal } from './TeamUserAccessModal'
 import { TeamUserDetailsModal } from './TeamUserDetailsModal'
 import { TeamUserLocationsModal } from './TeamUserLocationsModal'
 import { TeamUsersImportModal } from './TeamUsersImportModal'
+import { TeamGroupsTab } from './TeamGroupsTab'
 import { TeamUsersTab } from './TeamUsersTab'
 import styles from './TeamPage.module.css'
 
@@ -132,13 +133,16 @@ export function TeamPage () {
       uiLanguage: string
       isActive: boolean
       note: string | null
+      groupIds: string[]
       password: string | null
     },
   ) {
     setDetailsLoading(true)
     setDetailsError(null)
     try {
-      await axiosMainRequest.patch(`${apiRoutes.team.users}/${userId}`, patch)
+      const { groupIds, ...userPatch } = patch
+      await axiosMainRequest.patch(`${apiRoutes.team.users}/${userId}`, userPatch)
+      await axiosMainRequest.put(apiRoutes.team.userGroups(userId), { groupIds })
       await loadUsers()
       await openDetails(userId, 'view')
     } catch (err: unknown) {
@@ -404,6 +408,8 @@ export function TeamPage () {
             />
           </>
         )
+      ) : tab === 'groups' ? (
+        <TeamGroupsTab active={tab === 'groups'} users={users} canManage={myRole === 'admin' || myRole === 'manager'} />
       ) : (
         <TeamAuditorsTab ref={auditorsRef} isAdmin={myRole === 'admin'} />
       )}

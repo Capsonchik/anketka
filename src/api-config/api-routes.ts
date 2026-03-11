@@ -26,6 +26,12 @@ export const apiRoutes = {
     userProjectAccess: (userId: string) => `${ROUTES.team}/users/${userId}/project-access`,
     userPointAccess: (userId: string) => `${ROUTES.team}/users/${userId}/point-access`,
     userResetPassword: (userId: string) => `${ROUTES.team}/users/${userId}/password/reset`,
+    groups: `${ROUTES.team}/groups`,
+    group: (groupId: string) => `${ROUTES.team}/groups/${groupId}`,
+    groupMembers: (groupId: string) => `${ROUTES.team}/groups/${groupId}/members`,
+    groupMembersImport: (groupId: string) => `${ROUTES.team}/groups/${groupId}/members/import`,
+    groupAddByEmail: (groupId: string) => `${ROUTES.team}/groups/${groupId}/members/add-by-email`,
+    userGroups: (userId: string) => `${ROUTES.team}/users/${userId}/groups`,
     bulkProjectAccess: `${ROUTES.team}/users/project-access/bulk`,
   },
   clients: {

@@ -4,7 +4,7 @@ from io import BytesIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from openpyxl import load_workbook
@@ -19,6 +19,8 @@ from app.models.user import User
 from app.models.user_point_access import UserPointAccess
 from app.models.user_project_access import UserProjectAccess
 from app.models.user_role import UserRole
+from app.models.user_group import UserGroup
+from app.models.user_group_member import UserGroupMember
 from app.schemas.access import (
   BulkAssignRequest,
   BulkAssignResponse,
@@ -38,6 +40,19 @@ from app.schemas.team import (
   TeamUsersImportError,
   TeamUsersImportResponse,
   TeamUsersResponse,
+)
+from app.schemas.groups import (
+  AddUserGroupMemberByEmailRequest,
+  CreateUserGroupRequest,
+  ReplaceUserGroupMembersRequest,
+  ReplaceUserGroupsForUserRequest,
+  UpdateUserGroupRequest,
+  UserGroupItem,
+  UserGroupMembersImportError,
+  UserGroupMembersImportResponse,
+  UserGroupMembersResponse,
+  UserGroupsForUserResponse,
+  UserGroupsResponse,
 )
 
 
@@ -716,6 +731,10 @@ def _normalize_header (value: str) -> str:
   return ''.join(ch for ch in str(value or '').strip().lower() if ch.isalnum() or ch in ('_', ' ')).replace('  ', ' ').strip()
 
 
+def _normalize_group_name (value: str) -> str:
+  return ' '.join(str(value or '').strip().split())
+
+
 def _split_fio (fio: str) -> tuple[str, str]:
   parts = [p for p in str(fio or '').strip().split() if p]
   if len(parts) >= 2:
@@ -904,4 +923,323 @@ async def import_users_xlsx (
     return TeamUsersImportResponse(created=0, updated=0, skipped=0, errors=[TeamUsersImportError(row=0, message=str(err))])
 
   return TeamUsersImportResponse(created=created, updated=updated, skipped=skipped, errors=None)
+
+
+async def _get_group_or_404 (db: AsyncSession, *, company_id: UUID, group_id: UUID) -> UserGroup:
+  res = await db.execute(select(UserGroup).where(UserGroup.id == group_id, UserGroup.company_id == company_id))
+  group = res.scalar_one_or_none()
+  if group is None:
+    raise HTTPException(status_code=404, detail='Группа не найдена')
+  return group
+
+
+@router.get('/groups', response_model=UserGroupsResponse, summary='Список пользовательских групп')
+async def list_user_groups (
+  q: str | None = Query(default=None, description='Поиск по названию группы'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupsResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+
+  stmt = select(UserGroup).where(UserGroup.company_id == company_id).order_by(UserGroup.created_at.desc())
+  if q:
+    stmt = stmt.where(UserGroup.name.ilike(f'%{q.strip()}%'))
+  res = await db.execute(stmt)
+  groups = res.scalars().all()
+
+  # members count
+  ids = [g.id for g in groups]
+  counts: dict[UUID, int] = {}
+  if ids:
+    cnt_res = await db.execute(
+      select(UserGroupMember.group_id, func.count(UserGroupMember.id))
+      .where(UserGroupMember.group_id.in_(ids))
+      .group_by(UserGroupMember.group_id),
+    )
+    counts = {gid: int(c) for gid, c in cnt_res.all()}
+
+  items = [UserGroupItem(id=g.id, name=g.name, membersCount=counts.get(g.id, 0), createdAt=g.created_at) for g in groups]
+  return UserGroupsResponse(items=items)
+
+
+@router.post('/groups', response_model=UserGroupItem, status_code=201, summary='Создать группу')
+async def create_user_group (
+  payload: CreateUserGroupRequest,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupItem:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+
+  name = _normalize_group_name(payload.name)
+  if not name:
+    raise HTTPException(status_code=400, detail='Название группы пустое')
+
+  exists = await db.execute(
+    select(UserGroup.id).where(UserGroup.company_id == company_id, func.lower(UserGroup.name) == name.lower()),
+  )
+  if exists.scalar_one_or_none() is not None:
+    raise HTTPException(status_code=400, detail='Группа с таким названием уже существует')
+
+  group = UserGroup(company_id=company_id, name=name, created_by_user_id=current_user.id)
+  db.add(group)
+  await db.commit()
+  return UserGroupItem(id=group.id, name=group.name, membersCount=0, createdAt=group.created_at)
+
+
+@router.patch('/groups/{group_id}', response_model=UserGroupItem, summary='Переименовать группу')
+async def update_user_group (
+  payload: UpdateUserGroupRequest,
+  group_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupItem:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+  group = await _get_group_or_404(db, company_id=company_id, group_id=group_id)
+
+  name = _normalize_group_name(payload.name)
+  if not name:
+    raise HTTPException(status_code=400, detail='Название группы пустое')
+
+  exists = await db.execute(
+    select(UserGroup.id).where(
+      UserGroup.company_id == company_id,
+      func.lower(UserGroup.name) == name.lower(),
+      UserGroup.id != group.id,
+    ),
+  )
+  if exists.scalar_one_or_none() is not None:
+    raise HTTPException(status_code=400, detail='Группа с таким названием уже существует')
+
+  group.name = name
+  await db.commit()
+
+  cnt = await db.execute(select(func.count()).select_from(UserGroupMember).where(UserGroupMember.group_id == group.id))
+  return UserGroupItem(id=group.id, name=group.name, membersCount=int(cnt.scalar_one() or 0), createdAt=group.created_at)
+
+
+@router.delete('/groups/{group_id}', response_model=dict, summary='Удалить группу')
+async def delete_user_group (
+  group_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> dict:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+  group = await _get_group_or_404(db, company_id=company_id, group_id=group_id)
+
+  await db.execute(delete(UserGroup).where(UserGroup.id == group.id))
+  await db.commit()
+  return {'ok': True}
+
+
+@router.get('/groups/{group_id}/members', response_model=UserGroupMembersResponse, summary='Участники группы')
+async def get_group_members (
+  group_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupMembersResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+  await _get_group_or_404(db, company_id=company_id, group_id=group_id)
+
+  res = await db.execute(
+    select(UserGroupMember.user_id).join(User, User.id == UserGroupMember.user_id).where(
+      UserGroupMember.group_id == group_id,
+      User.company_id == company_id,
+    ),
+  )
+  return UserGroupMembersResponse(groupId=group_id, userIds=list(res.scalars().all()))
+
+
+@router.put('/groups/{group_id}/members', response_model=UserGroupMembersResponse, summary='Заменить участников группы')
+async def replace_group_members (
+  payload: ReplaceUserGroupMembersRequest,
+  group_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupMembersResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+  await _get_group_or_404(db, company_id=company_id, group_id=group_id)
+
+  user_ids = list(dict.fromkeys(payload.userIds))
+  if user_ids:
+    allowed = await db.execute(select(User.id).where(User.company_id == company_id, User.id.in_(user_ids)))
+    allowed_set = set(allowed.scalars().all())
+    if len(allowed_set) != len(user_ids):
+      raise HTTPException(status_code=400, detail='Некоторые пользователи не найдены в компании')
+  else:
+    allowed_set = set()
+
+  await db.execute(delete(UserGroupMember).where(UserGroupMember.group_id == group_id))
+  for uid in allowed_set:
+    db.add(UserGroupMember(group_id=group_id, user_id=uid))
+  await db.commit()
+  return await get_group_members(group_id=group_id, db=db, current_user=current_user)
+
+
+@router.post('/groups/{group_id}/members/add-by-email', response_model=UserGroupMembersResponse, summary='Добавить участника по email')
+async def add_group_member_by_email (
+  payload: AddUserGroupMemberByEmailRequest,
+  group_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupMembersResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+  await _get_group_or_404(db, company_id=company_id, group_id=group_id)
+
+  res = await db.execute(select(User).where(User.company_id == company_id, func.lower(User.email) == str(payload.email).lower()))
+  user = res.scalar_one_or_none()
+  if user is None:
+    raise HTTPException(status_code=404, detail='Пользователь не найден')
+
+  db.add(UserGroupMember(group_id=group_id, user_id=user.id))
+  try:
+    await db.commit()
+  except Exception:
+    await db.rollback()
+  return await get_group_members(group_id=group_id, db=db, current_user=current_user)
+
+
+@router.post(
+  '/groups/{group_id}/members/import',
+  response_model=UserGroupMembersImportResponse,
+  summary='Импорт участников группы из Excel (.xlsx)',
+)
+async def import_group_members_xlsx (
+  group_id: UUID = Path(...),
+  file: UploadFile = File(...),
+  mode: str = Query(default='add', description='add|replace'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupMembersImportResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'data.import')
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+  await _get_group_or_404(db, company_id=company_id, group_id=group_id)
+
+  if not file.filename or not file.filename.lower().endswith('.xlsx'):
+    raise HTTPException(status_code=400, detail='Нужен файл .xlsx')
+  raw = await file.read()
+  if not raw:
+    raise HTTPException(status_code=400, detail='Файл пустой')
+
+  try:
+    wb = load_workbook(BytesIO(raw), read_only=True, data_only=True)
+    ws = wb.active
+  except Exception:
+    raise HTTPException(status_code=400, detail='Не удалось прочитать .xlsx')
+
+  rows = list(ws.iter_rows(values_only=True))
+  if not rows or not rows[0]:
+    raise HTTPException(status_code=400, detail='В файле нет заголовка')
+
+  header = [_normalize_header(x) for x in rows[0]]
+  idx = {h: i for i, h in enumerate(header) if h}
+  if 'email' not in idx and 'почта' not in idx and 'e-mail' not in idx:
+    raise HTTPException(status_code=400, detail='Не найдена колонка Email')
+  i_email = idx.get('email', idx.get('почта', idx.get('e-mail')))
+
+  emails: list[tuple[int, str]] = []
+  errors: list[UserGroupMembersImportError] = []
+  for r_idx, row in enumerate(rows[1:], start=2):
+    email = str(row[i_email] or '').strip().lower()
+    if not email:
+      errors.append(UserGroupMembersImportError(row=r_idx, message='Email обязателен'))
+      continue
+    emails.append((r_idx, email))
+
+  if errors:
+    return UserGroupMembersImportResponse(added=0, skipped=0, errors=errors)
+
+  if mode not in ('add', 'replace'):
+    raise HTTPException(status_code=400, detail='Некорректный mode')
+
+  if mode == 'replace':
+    await db.execute(delete(UserGroupMember).where(UserGroupMember.group_id == group_id))
+
+  added = 0
+  skipped = 0
+  for r_idx, email in emails:
+    res = await db.execute(select(User.id).where(User.company_id == company_id, func.lower(User.email) == email))
+    uid = res.scalar_one_or_none()
+    if uid is None:
+      errors.append(UserGroupMembersImportError(row=r_idx, message='Пользователь не найден'))
+      continue
+    db.add(UserGroupMember(group_id=group_id, user_id=uid))
+    try:
+      await db.flush()
+      added += 1
+    except Exception:
+      await db.rollback()
+      skipped += 1
+
+  await db.commit()
+  return UserGroupMembersImportResponse(added=added, skipped=skipped, errors=errors or None)
+
+
+@router.get('/users/{user_id}/groups', response_model=UserGroupsForUserResponse, summary='Группы пользователя')
+async def get_user_groups (
+  user_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupsForUserResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+  await _ensure_target_user_in_company(db, company_id=company_id, user_id=user_id)
+
+  res = await db.execute(
+    select(UserGroupMember.group_id)
+    .join(UserGroup, UserGroup.id == UserGroupMember.group_id)
+    .where(UserGroupMember.user_id == user_id, UserGroup.company_id == company_id),
+  )
+  return UserGroupsForUserResponse(userId=user_id, groupIds=list(res.scalars().all()))
+
+
+@router.put('/users/{user_id}/groups', response_model=UserGroupsForUserResponse, summary='Заменить группы пользователя')
+async def replace_user_groups (
+  payload: ReplaceUserGroupsForUserRequest,
+  user_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserGroupsForUserResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  company_id = _company_id(current_user)
+  await _ensure_target_user_in_company(db, company_id=company_id, user_id=user_id)
+
+  group_ids = list(dict.fromkeys(payload.groupIds))
+  if group_ids:
+    allowed = await db.execute(select(UserGroup.id).where(UserGroup.company_id == company_id, UserGroup.id.in_(group_ids)))
+    allowed_set = set(allowed.scalars().all())
+    if len(allowed_set) != len(group_ids):
+      raise HTTPException(status_code=400, detail='Некоторые группы не найдены в компании')
+  else:
+    allowed_set = set()
+
+  # delete all memberships for this user inside company
+  await db.execute(
+    delete(UserGroupMember).where(
+      UserGroupMember.user_id == user_id,
+      UserGroupMember.group_id.in_(select(UserGroup.id).where(UserGroup.company_id == company_id)),
+    ),
+  )
+  for gid in allowed_set:
+    db.add(UserGroupMember(group_id=gid, user_id=user_id))
+  await db.commit()
+
+  return await get_user_groups(user_id=user_id, db=db, current_user=current_user)
 

@@ -53,6 +53,58 @@ export type TeamUsersImportResponse = {
   errors?: TeamUsersImportError[]
 }
 
+export type UserGroupItem = {
+  id: string
+  name: string
+  membersCount: number
+  createdAt: string
+}
+
+export type UserGroupsResponse = {
+  items: UserGroupItem[]
+}
+
+export type CreateUserGroupRequest = {
+  name: string
+}
+
+export type UpdateUserGroupRequest = {
+  name: string
+}
+
+export type UserGroupMembersResponse = {
+  groupId: string
+  userIds: string[]
+}
+
+export type ReplaceUserGroupMembersRequest = {
+  userIds: string[]
+}
+
+export type UserGroupMembersImportError = {
+  row: number
+  message: string
+}
+
+export type UserGroupMembersImportResponse = {
+  added: number
+  skipped: number
+  errors?: UserGroupMembersImportError[] | null
+}
+
+export type AddUserGroupMemberByEmailRequest = {
+  email: string
+}
+
+export type UserGroupsForUserResponse = {
+  userId: string
+  groupIds: string[]
+}
+
+export type ReplaceUserGroupsForUserRequest = {
+  groupIds: string[]
+}
+
 export type UserProjectAccessItem = {
   projectId: string
   accessRole: 'controller' | 'coordinator'

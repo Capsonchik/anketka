@@ -9,7 +9,13 @@ import { apiRoutes } from '@/api-config/api-routes'
 import { userRoleLabel } from '@/entities/user'
 import { userRoleOptions, type UserRole } from '@/entities/user'
 import { Button } from '@/shared/ui'
-import type { TeamUserDetailsResponse, UserPointAccessResponse, UserProjectAccessResponse } from '../model/types'
+import type {
+  TeamUserDetailsResponse,
+  UserGroupsForUserResponse,
+  UserGroupsResponse,
+  UserPointAccessResponse,
+  UserProjectAccessResponse,
+} from '../model/types'
 
 import styles from './TeamUserDetailsModal.module.css'
 
@@ -102,6 +108,7 @@ export function TeamUserDetailsModal ({
       uiLanguage: string
       isActive: boolean
       permissions: string[]
+      groupIds: string[]
       note: string | null
       password: string | null
     },
@@ -126,6 +133,7 @@ export function TeamUserDetailsModal ({
       uiLanguage: user?.uiLanguage ?? 'ru',
       isActive: Boolean(user?.isActive ?? true),
       permissions: (user?.permissions ?? DEFAULTS[(user?.role ?? 'manager') as UserRole] ?? []).slice(),
+      groupIds: [] as string[],
       note: user?.note ?? '',
       password: '',
     }
@@ -138,6 +146,8 @@ export function TeamUserDetailsModal ({
   const [pointsAccess, setPointsAccess] = useState<UserPointAccessResponse | null>(null)
   const [pointsAccessError, setPointsAccessError] = useState<string | null>(null)
   const [resetPassword, setResetPassword] = useState<string | null>(null)
+  const [allGroups, setAllGroups] = useState<Array<{ id: string; name: string }>>([])
+  const [groupsError, setGroupsError] = useState<string | null>(null)
 
   useEffect(() => {
     setForm(initialForm)
@@ -148,6 +158,36 @@ export function TeamUserDetailsModal ({
     setResetPassword(null)
     setTab('profile')
   }, [open, user?.id])
+
+  useEffect(() => {
+    const uid = user?.id
+    if (!open || !uid || !canEdit) {
+      setAllGroups([])
+      setGroupsError(null)
+      return
+    }
+    let isAlive = true
+    setGroupsError(null)
+    Promise.all([
+      axiosMainRequest.get<UserGroupsResponse>(apiRoutes.team.groups),
+      axiosMainRequest.get<UserGroupsForUserResponse>(apiRoutes.team.userGroups(uid)),
+    ])
+      .then(([gRes, uRes]) => {
+        if (!isAlive) return
+        const groups = (gRes.data.items ?? []).map((x) => ({ id: x.id, name: x.name }))
+        setAllGroups(groups)
+        setForm((prev) => ({ ...prev, groupIds: uRes.data.groupIds ?? [] }))
+      })
+      .catch((err: unknown) => {
+        if (!isAlive) return
+        setAllGroups([])
+        setGroupsError(err instanceof Error ? err.message : 'Не удалось загрузить группы')
+      })
+    return () => {
+      isAlive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, user?.id, canEdit])
 
   useEffect(() => {
     const uid = user?.id
@@ -266,6 +306,33 @@ export function TeamUserDetailsModal ({
                             )
                           })}
                         </div>
+                      </div>
+                    </div>
+
+                    <div className={styles.row}>
+                      <div className={styles.label}>Пользовательские группы</div>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        {groupsError ? <div className={styles.error}>{groupsError}</div> : null}
+                        {!allGroups.length && !groupsError ? <div className={styles.value}>—</div> : null}
+                        {allGroups.map((g) => {
+                          const checked = form.groupIds.includes(g.id)
+                          return (
+                            <Checkbox
+                              key={g.id}
+                              checked={checked}
+                              onChange={(_, next) => {
+                                setForm((prev) => {
+                                  const set = new Set(prev.groupIds)
+                                  if (next) set.add(g.id)
+                                  else set.delete(g.id)
+                                  return { ...prev, groupIds: [...set] }
+                                })
+                              }}
+                            >
+                              {g.name}
+                            </Checkbox>
+                          )
+                        })}
                       </div>
                     </div>
                   </div>
@@ -464,12 +531,13 @@ export function TeamUserDetailsModal ({
                       email: em,
                       phone: form.phone.trim() || null,
                       role: form.role,
-                    profileCompany: form.profileCompany.trim() || null,
-                    uiLanguage: form.uiLanguage || 'ru',
-                    isActive: Boolean(form.isActive),
-                    permissions: form.permissions ?? [],
+                      profileCompany: form.profileCompany.trim() || null,
+                      uiLanguage: form.uiLanguage || 'ru',
+                      isActive: Boolean(form.isActive),
+                      permissions: form.permissions ?? [],
+                      groupIds: form.groupIds ?? [],
                       note: form.note.trim() || null,
-                    password: form.password.trim() ? form.password.trim() : null,
+                      password: form.password.trim() ? form.password.trim() : null,
                     })
                   }}
                   disabled={isLoading}
