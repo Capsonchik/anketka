@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { RequireAuthNoSSR } from '@/app/providers'
+import { BootstrapDataProvider } from '@/shared/lib/bootstrap-data'
 import { AnketaServiceShell } from '@/widgets/anketa-service-shell'
 
 export const metadata: Metadata = {
@@ -15,7 +16,9 @@ export default function AnketaServiceLayout ({
 }>) {
   return (
     <RequireAuthNoSSR>
-      <AnketaServiceShell>{children}</AnketaServiceShell>
+      <BootstrapDataProvider>
+        <AnketaServiceShell>{children}</AnketaServiceShell>
+      </BootstrapDataProvider>
     </RequireAuthNoSSR>
   )
 }

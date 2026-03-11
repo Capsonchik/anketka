@@ -1,53 +1,35 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { SelectPicker } from 'rsuite'
 
-import axiosMainRequest from '@/api-config/api-config'
-import { apiRoutes } from '@/api-config/api-routes'
 import { readActiveCompanyId, writeActiveCompanyId } from '@/api-config/company-context'
+import { useBootstrapData } from '@/shared/lib/bootstrap-data'
 
 import styles from './AnketaServiceShell.module.css'
 
-type ClientItem = { id: string; name: string }
-type ClientsResponse = { items: ClientItem[] }
-
 export function ClientSwitcher ({ collapsed }: { collapsed?: boolean }) {
-  const [clients, setClients] = useState<ClientItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [activeId, setActiveId] = useState<string | null>(() => readActiveCompanyId())
+  const { clients, isLoading } = useBootstrapData()
 
-  const hasMultiple = clients.length > 1
+  const hasMultiple = useMemo(() => clients.length > 1, [clients.length])
+  const activeId = useMemo(() => {
+    if (!clients.length) return readActiveCompanyId()
+    const stored = readActiveCompanyId()
+    const next = stored && clients.some((x) => x.id === stored) ? stored : clients[0].id
+    return next
+  }, [clients])
 
   useEffect(() => {
-    let isAlive = true
-    axiosMainRequest
-      .get<ClientsResponse>(apiRoutes.clients.clients)
-      .then((res) => {
-        if (!isAlive) return
-        const items = res.data.items ?? []
-        setClients(items)
-
-        if (items.length === 0) {
-          writeActiveCompanyId(null)
-          setActiveId(null)
-          return
-        }
-
-        const stored = readActiveCompanyId()
-        const next = stored && items.some((x) => x.id === stored) ? stored : items[0].id
-        writeActiveCompanyId(next)
-        setActiveId(next)
-      })
-      .finally(() => {
-        if (!isAlive) return
-        setIsLoading(false)
-      })
-
-    return () => {
-      isAlive = false
+    if (isLoading) return
+    if (clients.length === 0) {
+      writeActiveCompanyId(null)
+      return
     }
-  }, [])
+
+    const stored = readActiveCompanyId()
+    if (stored && clients.some((x) => x.id === stored)) return
+    writeActiveCompanyId(clients[0].id)
+  }, [clients, isLoading])
 
   if (isLoading) return null
   if (clients.length === 0) return null
@@ -60,7 +42,6 @@ export function ClientSwitcher ({ collapsed }: { collapsed?: boolean }) {
       onChange={(value) => {
         const next = String(value || '').trim() || null
         writeActiveCompanyId(next)
-        setActiveId(next)
         window.location.reload()
       }}
       aria-label="Клиент"

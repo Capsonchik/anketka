@@ -11,7 +11,7 @@ import { Button } from '@/shared/ui'
 import { canEditTeamUser } from '../lib/canEditTeamUser'
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
 import { normalizeEmail, normalizePhone } from '../lib/normalizeContact'
-import type { CreateUserResponse, MeResponse, TeamUser, TeamUserDetailsResponse, TeamUsersResponse } from '../model/types'
+import type { CreateUserResponse, TeamUser, TeamUserDetailsResponse, TeamUsersResponse } from '../model/types'
 import type { TeamAuditorsTabHandle } from './TeamAuditorsTab'
 import { TeamAuditorsTab } from './TeamAuditorsTab'
 import { TeamCreateUserModal, type CreateUserFormState } from './TeamCreateUserModal'
@@ -25,6 +25,7 @@ import type { TeamGroupsTabHandle } from './TeamGroupsTab'
 import { TeamGroupsTab } from './TeamGroupsTab'
 import { TeamUsersTab } from './TeamUsersTab'
 import styles from './TeamPage.module.css'
+import { useBootstrapData } from '@/shared/lib/bootstrap-data'
 
 export function TeamPage () {
   const [users, setUsers] = useState<TeamUser[]>([])
@@ -76,6 +77,9 @@ export function TeamPage () {
 
   const auditorsRef = useRef<TeamAuditorsTabHandle | null>(null)
   const groupsRef = useRef<TeamGroupsTabHandle | null>(null)
+  const skipNextDebouncedLoadRef = useRef(false)
+
+  const { me: bootMe, isLoading: isBootLoading, error: bootError } = useBootstrapData()
 
   const hasFilters = useMemo(() => search.trim().length > 0 || roleFilter !== 'all', [roleFilter, search])
 
@@ -208,34 +212,29 @@ export function TeamPage () {
   }
 
   useEffect(() => {
-    let isAlive = true
-    ;(async () => {
-      let companyId: string | null = null
-      try {
-        const res = await axiosMainRequest.get<MeResponse>(apiRoutes.users.me)
-        if (!isAlive) return
-        setMyRole(res.data.role)
-        companyId = res.data.company?.id ?? null
-        setMyCompanyId(companyId)
-      } catch {
-        if (!isAlive) return
+    if (isBootLoading) return
+    if (!bootMe) {
+      if (bootError) {
         setMyRole(null)
-        companyId = null
         setMyCompanyId(null)
-      } finally {
-        if (!isAlive) return
-        await loadUsers({ companyId })
       }
-    })()
-
-    return () => {
-      isAlive = false
+      return
     }
+
+    const companyId = bootMe.company?.id ?? null
+    setMyRole(bootMe.role)
+    setMyCompanyId(companyId)
+    skipNextDebouncedLoadRef.current = true
+    loadUsers({ companyId })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [bootMe, isBootLoading, bootError])
 
   useEffect(() => {
     if (!myCompanyId) return
+    if (skipNextDebouncedLoadRef.current) {
+      skipNextDebouncedLoadRef.current = false
+      return
+    }
     const t = window.setTimeout(() => {
       loadUsers({ q: search, role: roleFilter })
     }, 250)
