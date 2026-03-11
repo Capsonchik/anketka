@@ -11,6 +11,7 @@ export type TeamUser = {
   profileCompany?: string | null
   uiLanguage: string
   isActive: boolean
+  permissions: string[]
   note: string | null
   createdAt: string
   lastLoginAt?: string | null

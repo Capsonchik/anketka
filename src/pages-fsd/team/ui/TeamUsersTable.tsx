@@ -87,7 +87,7 @@ export function TeamUsersTable ({
                 {canAccess ? (
                   <IconButton
                     label="Доступы"
-                    iconSrc="/icons/pin.svg"
+                    iconSrc="/icons/shield.svg"
                     onClick={(e) => {
                       e.stopPropagation()
                       onAccess(u.id)

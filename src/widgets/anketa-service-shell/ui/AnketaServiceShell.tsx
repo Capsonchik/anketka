@@ -29,9 +29,10 @@ export function AnketaServiceShell ({ children }: { children: React.ReactNode })
           <div className={styles.avatar} aria-hidden="true" />
           <div className={styles.profileText}>
             <ProfileInfo nameClassName={styles.profileName} metaClassName={styles.profileMeta} />
-            {!isSidebarCollapsed ? <ClientSwitcher /> : null}
           </div>
         </div>
+
+        <ClientSwitcher collapsed={isSidebarCollapsed} />
 
         <nav className={styles.nav}>
           {menuItems.map((item) => (

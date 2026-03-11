@@ -62,10 +62,84 @@ def to_team_user_item (user: User) -> TeamUserItem:
     profileCompany=user.profile_company,
     uiLanguage=user.ui_language,
     isActive=bool(user.is_active),
+    permissions=list(user.permissions or []),
     note=user.note,
     createdAt=user.created_at,
     lastLoginAt=user.last_login_at,
   )
+
+
+PERMISSIONS: list[tuple[str, str]] = [
+  ('media.audio.view', 'Видеть аудио'),
+  ('media.photo.view', 'Видеть фото'),
+  ('media.video.view', 'Видеть видео'),
+  ('checks.create', 'Создавать проверки'),
+  ('checks.appeal', 'Апеллировать'),
+  ('notifications.enabled', 'Получать уведомления'),
+  ('checks.edit', 'Редактировать проверки'),
+  ('users.edit', 'Редактировать профили пользователей'),
+  ('notifications.send', 'Отправлять уведомления'),
+  ('notifications.inbox', 'Видеть уведомления'),
+  ('data.export', 'Экспорт'),
+  ('data.import', 'Импорт'),
+  ('tp.fio.view', 'Видеть ФИО ТП'),
+  ('survey.pdf.view', 'Видеть PDF анкеты'),
+  ('checks.price.view', 'Видеть цену проверки'),
+]
+
+PERMISSION_KEYS = {k for k, _ in PERMISSIONS}
+
+DEFAULT_PERMISSIONS_BY_ROLE: dict[UserRole, list[str]] = {
+  UserRole.admin: [k for k, _ in PERMISSIONS],
+  UserRole.manager: [k for k, _ in PERMISSIONS],
+  UserRole.controller: [
+    'media.audio.view',
+    'media.photo.view',
+    'media.video.view',
+    'checks.appeal',
+    'notifications.enabled',
+    'notifications.inbox',
+    'checks.edit',
+    'data.export',
+    'survey.pdf.view',
+    'checks.price.view',
+  ],
+  UserRole.coordinator: [
+    'media.audio.view',
+    'media.photo.view',
+    'media.video.view',
+    'checks.appeal',
+    'notifications.enabled',
+    'notifications.inbox',
+    'checks.edit',
+    'data.export',
+    'survey.pdf.view',
+    'checks.price.view',
+  ],
+  UserRole.client: [
+    'media.photo.view',
+    'survey.pdf.view',
+    'notifications.inbox',
+  ],
+}
+
+
+def _normalize_permissions (values: list[str] | None, *, role: UserRole) -> list[str]:
+  if not values:
+    return list(DEFAULT_PERMISSIONS_BY_ROLE.get(role, []))
+
+  out: list[str] = []
+  seen: set[str] = set()
+  for raw in values:
+    k = str(raw or '').strip()
+    if not k:
+      continue
+    if k not in PERMISSION_KEYS:
+      raise HTTPException(status_code=400, detail=f'Некорректный permission: {k}')
+    if k not in seen:
+      seen.add(k)
+      out.append(k)
+  return out
 
 
 ROLE_LEVEL: dict[UserRole, int] = {
@@ -102,6 +176,18 @@ def _ensure_admin_or_manager_or_owner (user: User) -> None:
     return
   if user.role not in (UserRole.admin, UserRole.manager):
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
+
+
+def _has_perm (user: User, key: str) -> bool:
+  return key in set(user.permissions or [])
+
+
+def _ensure_perm (user: User, key: str) -> None:
+  if (user.platform_role or 'user') == 'owner':
+    return
+  if user.role in (UserRole.admin, UserRole.manager) and _has_perm(user, key):
+    return
+  raise HTTPException(status_code=403, detail='Недостаточно прав')
 
 
 def _company_id (current_user: User) -> UUID:
@@ -184,6 +270,7 @@ async def list_users (
   current_user: User = Depends(get_current_user),
 ) -> TeamUsersResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
   company_id = getattr(current_user, 'active_company_id', current_user.company_id)
 
   stmt = (
@@ -232,6 +319,7 @@ async def create_user (
   current_user: User = Depends(get_current_user),
 ) -> TeamCreateUserResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
   _ensure_can_manage_user(current_user, target_role=payload.role)
 
   existing = await db.execute(select(User).where(User.email == str(payload.email)))
@@ -256,6 +344,7 @@ async def create_user (
     company_id=getattr(current_user, 'active_company_id', current_user.company_id),
     temporary_password=temporary_password,
     password_hash=hash_password(temporary_password),
+    permissions=_normalize_permissions(payload.permissions, role=payload.role),
   )
   db.add(user)
   await db.commit()
@@ -277,6 +366,7 @@ async def get_user (
   current_user: User = Depends(get_current_user),
 ) -> TeamUserDetailsResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
   company_id = getattr(current_user, 'active_company_id', current_user.company_id)
   res = await db.execute(
     select(User)
@@ -303,6 +393,7 @@ async def update_user (
   current_user: User = Depends(get_current_user),
 ) -> TeamUserDetailsResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
   company_id = _company_id(current_user)
   res = await db.execute(select(User).options(selectinload(User.company)).where(User.id == user_id, User.company_id == company_id))
   user = res.scalar_one_or_none()
@@ -348,6 +439,8 @@ async def update_user (
     user.ui_language = payload.uiLanguage
   if payload.isActive is not None:
     user.is_active = payload.isActive
+  if payload.permissions is not None:
+    user.permissions = _normalize_permissions(payload.permissions, role=(payload.role or user.role))
 
   password_out = None
   if payload.password is not None:
@@ -378,6 +471,7 @@ async def reset_user_password (
   current_user: User = Depends(get_current_user),
 ) -> TeamResetPasswordResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
   company_id = _company_id(current_user)
   res = await db.execute(select(User).where(User.id == user_id, User.company_id == company_id))
   user = res.scalar_one_or_none()
@@ -404,6 +498,7 @@ async def get_user_project_access (
   current_user: User = Depends(get_current_user),
 ) -> UserProjectAccessResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
   company_id = _company_id(current_user)
   await _ensure_target_user_in_company(db, company_id=company_id, user_id=user_id)
 
@@ -441,6 +536,7 @@ async def replace_user_project_access (
   current_user: User = Depends(get_current_user),
 ) -> UserProjectAccessResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
   company_id = _company_id(current_user)
   target = await _ensure_target_user_in_company(db, company_id=company_id, user_id=user_id)
 
@@ -495,6 +591,7 @@ async def bulk_assign_project_access (
   current_user: User = Depends(get_current_user),
 ) -> BulkAssignResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
   company_id = _company_id(current_user)
   await _ensure_project_manage_access(db, actor=current_user, project_id=payload.projectId)
 
@@ -641,6 +738,7 @@ async def import_users_xlsx (
   current_user: User = Depends(get_current_user),
 ) -> TeamUsersImportResponse:
   _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'data.import')
 
   if not file.filename or not file.filename.lower().endswith('.xlsx'):
     raise HTTPException(status_code=400, detail='Нужен файл .xlsx')

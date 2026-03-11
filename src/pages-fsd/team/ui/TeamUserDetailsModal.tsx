@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Input, Modal, Nav, SelectPicker } from 'rsuite'
+import { Checkbox, Input, Modal, Nav, SelectPicker } from 'rsuite'
 import Image from 'next/image'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import { userRoleLabel } from '@/entities/user'
 import { userRoleOptions, type UserRole } from '@/entities/user'
+import { Button } from '@/shared/ui'
 import type { TeamUserDetailsResponse, UserPointAccessResponse, UserProjectAccessResponse } from '../model/types'
 
 import styles from './TeamUserDetailsModal.module.css'
@@ -17,6 +18,54 @@ function fmtDt (value: string | null | undefined) {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
   return new Intl.DateTimeFormat('ru-RU', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d)
+}
+
+const PERMISSIONS: Array<{ key: string; label: string }> = [
+  { key: 'media.audio.view', label: 'Видеть аудио' },
+  { key: 'media.photo.view', label: 'Видеть фото' },
+  { key: 'media.video.view', label: 'Видеть видео' },
+  { key: 'checks.create', label: 'Создавать проверки' },
+  { key: 'checks.appeal', label: 'Апеллировать' },
+  { key: 'notifications.enabled', label: 'Получать уведомления' },
+  { key: 'checks.edit', label: 'Редактировать проверки' },
+  { key: 'users.edit', label: 'Редактировать профили пользователей' },
+  { key: 'notifications.send', label: 'Отправлять уведомления' },
+  { key: 'notifications.inbox', label: 'Видеть уведомления' },
+  { key: 'data.export', label: 'Экспорт' },
+  { key: 'data.import', label: 'Импорт' },
+  { key: 'tp.fio.view', label: 'Видеть ФИО ТП' },
+  { key: 'survey.pdf.view', label: 'Видеть PDF анкеты' },
+  { key: 'checks.price.view', label: 'Видеть цену проверки' },
+]
+
+const DEFAULTS: Record<UserRole, string[]> = {
+  admin: PERMISSIONS.map((x) => x.key),
+  manager: PERMISSIONS.map((x) => x.key),
+  controller: [
+    'media.audio.view',
+    'media.photo.view',
+    'media.video.view',
+    'checks.appeal',
+    'notifications.enabled',
+    'notifications.inbox',
+    'checks.edit',
+    'data.export',
+    'survey.pdf.view',
+    'checks.price.view',
+  ],
+  coordinator: [
+    'media.audio.view',
+    'media.photo.view',
+    'media.video.view',
+    'checks.appeal',
+    'notifications.enabled',
+    'notifications.inbox',
+    'checks.edit',
+    'data.export',
+    'survey.pdf.view',
+    'checks.price.view',
+  ],
+  client: ['media.photo.view', 'survey.pdf.view', 'notifications.inbox'],
 }
 
 export function TeamUserDetailsModal ({
@@ -52,6 +101,7 @@ export function TeamUserDetailsModal ({
       profileCompany: string | null
       uiLanguage: string
       isActive: boolean
+      permissions: string[]
       note: string | null
       password: string | null
     },
@@ -75,6 +125,7 @@ export function TeamUserDetailsModal ({
       profileCompany: user?.profileCompany ?? '',
       uiLanguage: user?.uiLanguage ?? 'ru',
       isActive: Boolean(user?.isActive ?? true),
+      permissions: (user?.permissions ?? DEFAULTS[(user?.role ?? 'manager') as UserRole] ?? []).slice(),
       note: user?.note ?? '',
       password: '',
     }
@@ -159,9 +210,68 @@ export function TeamUserDetailsModal ({
             </div>
 
             <div className={styles.right}>
-              {tab !== 'profile' ? (
+              {tab === 'role' ? (
+                actualMode === 'view' ? (
+                  <div className={styles.grid}>
+                    <Field label="Роль" value={userRoleLabel(user.role)} />
+                    <Field
+                      label="Права"
+                      value={user.permissions?.length ? user.permissions.join(', ') : '—'}
+                      isMonospace
+                    />
+                  </div>
+                ) : (
+                  <div className={styles.grid}>
+                    <FieldEdit label="Роль *">
+                      <SelectPicker
+                        value={form.role}
+                        onChange={(v) => {
+                          const nextRole = ((v as UserRole) ?? 'manager')
+                          setForm((p) => ({ ...p, role: nextRole, permissions: (DEFAULTS[nextRole] ?? []).slice() }))
+                        }}
+                        cleanable={false}
+                        searchable={false}
+                        block
+                        data={userRoleOptions}
+                      />
+                    </FieldEdit>
+                    <div className={styles.row}>
+                      <div className={styles.label}>Группы безопасности</div>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setForm((p) => ({ ...p, permissions: (DEFAULTS[p.role] ?? []).slice() }))}
+                        >
+                          Сбросить к роли
+                        </Button>
+                        <div style={{ display: 'grid', gap: 6 }}>
+                          {PERMISSIONS.map((p) => {
+                            const checked = form.permissions.includes(p.key)
+                            return (
+                              <Checkbox
+                                key={p.key}
+                                checked={checked}
+                                onChange={(_, next) => {
+                                  setForm((prev) => {
+                                    const set = new Set(prev.permissions)
+                                    if (next) set.add(p.key)
+                                    else set.delete(p.key)
+                                    return { ...prev, permissions: [...set] }
+                                  })
+                                }}
+                              >
+                                {p.label}
+                              </Checkbox>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ) : tab !== 'profile' ? (
                 <div className={styles.grid}>
-                  {tab === 'role' ? <Field label="Роль и группы безопасности" value="MVP: в разработке" /> : null}
                   {tab === 'distribution' ? <Field label="Распределение (клиенты/локации)" value="MVP: в разработке" /> : null}
                   {tab === 'reports' ? <Field label="Отчёты" value="MVP: в разработке" /> : null}
                 </div>
@@ -232,7 +342,10 @@ export function TeamUserDetailsModal ({
                   <FieldEdit label="Роль *">
                     <SelectPicker
                       value={form.role}
-                      onChange={(v) => setForm((p) => ({ ...p, role: ((v as UserRole) ?? 'manager') }))}
+                      onChange={(v) => {
+                        const nextRole = ((v as UserRole) ?? 'manager')
+                        setForm((p) => ({ ...p, role: nextRole, permissions: (DEFAULTS[nextRole] ?? []).slice() }))
+                      }}
                       cleanable={false}
                       searchable={false}
                       block
@@ -354,6 +467,7 @@ export function TeamUserDetailsModal ({
                     profileCompany: form.profileCompany.trim() || null,
                     uiLanguage: form.uiLanguage || 'ru',
                     isActive: Boolean(form.isActive),
+                    permissions: form.permissions ?? [],
                       note: form.note.trim() || null,
                     password: form.password.trim() ? form.password.trim() : null,
                     })

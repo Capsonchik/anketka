@@ -107,15 +107,35 @@
 
 .clientSelect {
   margin-top: 8px;
-  height: 30px;
   width: 100%;
+}
+
+.clientSelectCollapsed {
+  margin-top: 10px;
+}
+
+.clientSelect :global(.rs-picker-toggle) {
+  height: 30px;
   border-radius: 12px;
   border: 1px solid rgba(10, 30, 60, 0.08);
   background: rgba(255, 255, 255, 0.65);
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 500;
+}
+
+.clientSelect :global(.rs-picker-toggle.rs-btn) {
   padding: 0 10px;
+}
+
+.clientSelectCollapsed :global(.rs-picker-toggle) {
+  height: 34px;
+  border-radius: 14px;
+  font-size: 11px;
+}
+
+.clientSelectCollapsed :global(.rs-picker-toggle.rs-btn) {
+  padding: 0 8px;
 }
 
 .navLinkText {

@@ -18,6 +18,7 @@ class TeamUserItem(BaseModel):
   profileCompany: str | None = None
   uiLanguage: str
   isActive: bool
+  permissions: list[str] = Field(default_factory=list)
   note: str | None
   createdAt: datetime
   lastLoginAt: datetime | None = None
@@ -36,6 +37,7 @@ class TeamCreateUserRequest(BaseModel):
   profileCompany: str | None = Field(default=None, max_length=250)
   uiLanguage: str = Field(default='ru', max_length=12)
   isActive: bool = True
+  permissions: list[str] = Field(default_factory=list)
   note: str | None = Field(default=None, max_length=2000)
   password: str | None = Field(default=None, min_length=6, max_length=200)
 
@@ -62,6 +64,7 @@ class TeamUpdateUserRequest(BaseModel):
   profileCompany: str | None = Field(default=None, max_length=250)
   uiLanguage: str | None = Field(default=None, max_length=12)
   isActive: bool | None = None
+  permissions: list[str] | None = None
   note: str | None = Field(default=None, max_length=2000)
   password: str | None = Field(default=None, min_length=6, max_length=200)
 

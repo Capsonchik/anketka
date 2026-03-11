@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { SelectPicker } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
@@ -11,7 +12,7 @@ import styles from './AnketaServiceShell.module.css'
 type ClientItem = { id: string; name: string }
 type ClientsResponse = { items: ClientItem[] }
 
-export function ClientSwitcher () {
+export function ClientSwitcher ({ collapsed }: { collapsed?: boolean }) {
   const [clients, setClients] = useState<ClientItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(() => readActiveCompanyId())
@@ -49,26 +50,27 @@ export function ClientSwitcher () {
   }, [])
 
   if (isLoading) return null
-  if (!hasMultiple) return null
+  if (clients.length === 0) return null
 
   return (
-    <select
-      className={styles.clientSelect}
-      value={activeId ?? ''}
-      onChange={(e) => {
-        const next = String(e.target.value || '').trim() || null
+    <SelectPicker
+      className={[styles.clientSelect, collapsed ? styles.clientSelectCollapsed : null].filter(Boolean).join(' ')}
+      data={clients.map((c) => ({ value: c.id, label: c.name }))}
+      value={activeId}
+      onChange={(value) => {
+        const next = String(value || '').trim() || null
         writeActiveCompanyId(next)
         setActiveId(next)
         window.location.reload()
       }}
       aria-label="Клиент"
-    >
-      {clients.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.name}
-        </option>
-      ))}
-    </select>
+      cleanable={false}
+      searchable={!collapsed}
+      disabled={!hasMultiple}
+      size="sm"
+      block
+      placement="bottomStart"
+    />
   )
 }
 

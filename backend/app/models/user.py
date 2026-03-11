@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.config import settings
@@ -41,6 +42,8 @@ class User(Base):
   profile_company: Mapped[str | None] = mapped_column(String(250), nullable=True)
   note: Mapped[str | None] = mapped_column(Text, nullable=True)
   temporary_password: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+  permissions: Mapped[list[str]] = mapped_column(JSONB, server_default='[]')
 
   password_hash: Mapped[str] = mapped_column(String(255))
 
