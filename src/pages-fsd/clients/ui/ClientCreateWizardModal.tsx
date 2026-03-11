@@ -15,6 +15,8 @@ import type {
   UpdateClientRequest,
 } from '../model/types'
 
+import type { ClientFilterDef } from './ClientFiltersEditor'
+import { ClientFiltersEditor } from './ClientFiltersEditor'
 import styles from './ClientCreateWizardModal.module.css'
 
 type Step = 1 | 2 | 3 | 4 | 5
@@ -67,7 +69,7 @@ export function ClientCreateWizardModal ({
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null)
 
-  const [filtersJson, setFiltersJson] = useState('[]')
+  const [filters, setFilters] = useState<ClientFilterDef[]>([])
 
   const [apFile, setApFile] = useState<File | null>(null)
   const [apResult, setApResult] = useState<ClientApUploadResponse | null>(null)
@@ -92,7 +94,7 @@ export function ClientCreateWizardModal ({
     setTheme({ primary: '#2a7fff', accent: '#77dde7', gradientFrom: '#e6f0ff', gradientTo: '#f4fbff' })
     setLogoFile(null)
     setBackgroundFile(null)
-    setFiltersJson('[]')
+    setFilters([])
     setApFile(null)
     setApResult(null)
     setUsersFile(null)
@@ -168,12 +170,11 @@ export function ClientCreateWizardModal ({
     setIsBusy(true)
     setError(null)
     try {
-      const parsed = JSON.parse(filtersJson || '[]')
-      const res = await axiosMainRequest.patch<ClientItem>(apiRoutes.clients.client(client.id), { filters: parsed })
+      const res = await axiosMainRequest.patch<ClientItem>(apiRoutes.clients.client(client.id), { filters })
       setClient(res.data)
       setStep(4)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Некорректный JSON или ошибка сохранения')
+      setError(getApiErrorMessage(err))
     } finally {
       setIsBusy(false)
     }
@@ -314,9 +315,12 @@ export function ClientCreateWizardModal ({
         {step === 3 ? (
           <div className={styles.grid}>
             <div className={styles.row}>
-              <div className={styles.label}>Фильтры клиента (JSON)</div>
-              <textarea className={styles.jsonArea} value={filtersJson} onChange={(e) => setFiltersJson(e.target.value)} />
-              <div className={styles.hint}>MVP: сохраняем определения фильтров как массив объектов.</div>
+              <div className={styles.label}>Фильтры клиента</div>
+              <ClientFiltersEditor
+                value={filters}
+                categoryPreset={((category ?? 'other') as 'retail' | 'auto' | 'bank' | 'other')}
+                onChange={setFilters}
+              />
             </div>
           </div>
         ) : null}

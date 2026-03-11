@@ -18,6 +18,7 @@ from app.db.session import get_db
 from app.models.company import Company
 from app.models.company_settings import CompanySettings
 from app.models.owner_company_access import OwnerCompanyAccess
+from app.models.user_company_access import UserCompanyAccess
 from app.models.project import Project
 from app.models.shop_point import ShopPoint
 from app.models.user import User
@@ -85,12 +86,14 @@ def _to_client_public (company: Company, settings: CompanySettings | None) -> Cl
   category = None
   theme: dict = {}
   filters: list = []
+  is_archived = False
   base_ap_project_id = None
 
   if settings is not None:
     category = settings.category
     theme = settings.theme or {}
     filters = settings.filters or []
+    is_archived = bool(getattr(settings, 'is_archived', False))
     base_ap_project_id = settings.base_ap_project_id
     if settings.logo_path:
       logo_url = f'/api/v1/clients/{company.id}/logo'
@@ -105,6 +108,7 @@ def _to_client_public (company: Company, settings: CompanySettings | None) -> Cl
     backgroundUrl=background_url,
     theme=theme,
     filters=filters,
+    isArchived=is_archived,
     baseApProjectId=base_ap_project_id,
     createdAt=company.created_at,
   )
@@ -114,10 +118,12 @@ def _to_client_public (company: Company, settings: CompanySettings | None) -> Cl
 async def list_clients (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
+  includeArchived: bool = Query(default=False, description='Показывать архивные'),
 ) -> ClientsResponse:
   is_owner = (current_user.platform_role or 'user') == 'owner'
 
   if is_owner:
+    archived_cond = CompanySettings.is_archived.is_(False) | (CompanySettings.company_id.is_(None))  # type: ignore
     stmt = (
       select(Company, CompanySettings)
       .join(OwnerCompanyAccess, OwnerCompanyAccess.company_id == Company.id)
@@ -125,11 +131,16 @@ async def list_clients (
       .where(OwnerCompanyAccess.owner_user_id == current_user.id)
       .order_by(Company.created_at.desc())
     )
+    if not includeArchived:
+      stmt = stmt.where(archived_cond)
   else:
+    # non-owner can see own company + explicitly granted companies
     stmt = (
       select(Company, CompanySettings)
       .outerjoin(CompanySettings, CompanySettings.company_id == Company.id)
-      .where(Company.id == current_user.company_id)
+      .outerjoin(UserCompanyAccess, UserCompanyAccess.company_id == Company.id)
+      .where((Company.id == current_user.company_id) | (UserCompanyAccess.user_id == current_user.id))
+      .order_by(Company.created_at.desc())
     )
 
   res = await db.execute(stmt)
@@ -207,6 +218,8 @@ async def update_client (
     settings.theme = payload.theme
   if payload.filters is not None:
     settings.filters = payload.filters
+  if getattr(payload, 'isArchived', None) is not None:
+    settings.is_archived = bool(payload.isArchived)
 
   await db.commit()
 
@@ -438,6 +451,41 @@ async def upload_client_ap (
 
     chain = await _get_or_create_chain(db, client_id, chain_name)
 
+    # store extra columns as attrs for distribution/filters
+    known_keys = {
+      _lower_key('магазин'),
+      _lower_key('сеть'),
+      _lower_key('shop'),
+      _lower_key('shop_chain'),
+      _lower_key('name'),
+      _lower_key('code'),
+      _lower_key('код'),
+      _lower_key('id'),
+      _lower_key('точка'),
+      _lower_key('point'),
+      _lower_key('point_code'),
+      _lower_key('address'),
+      _lower_key('адрес'),
+      _lower_key('region'),
+      _lower_key('регион'),
+      _lower_key('region_code'),
+      _lower_key('reg_id'),
+      _lower_key('city'),
+      _lower_key('город'),
+      _lower_key('concat'),
+    }
+    attrs: dict[str, str] = {}
+    for rk, rv in r.items():
+      k = _lower_key(rk)
+      if not k or k in known_keys:
+        continue
+      v = _norm_optional(rv)
+      if not v:
+        continue
+      if len(attrs) >= 50:
+        break
+      attrs[k[:64]] = v[:250]
+
     existing_res = await db.execute(
       select(ShopPoint).where(ShopPoint.project_id == project_id, ShopPoint.code == code),
     )
@@ -453,6 +501,7 @@ async def upload_client_ap (
         region_code=region_code,
         city_name=city_name,
         concat=concat,
+        attrs=attrs,
       )
       db.add(point)
       created += 1
@@ -462,6 +511,7 @@ async def upload_client_ap (
       point.region_code = region_code
       point.city_name = city_name
       point.concat = concat
+      point.attrs = attrs
       updated += 1
 
   await db.commit()

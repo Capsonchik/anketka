@@ -29,6 +29,8 @@ class CompanySettings(Base):
   theme: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
   filters: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
+  is_archived: Mapped[bool] = mapped_column(default=False, server_default='false', index=True)
+
   base_ap_project_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
 
   created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

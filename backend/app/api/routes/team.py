@@ -12,7 +12,6 @@ from openpyxl import load_workbook
 from app.api.deps import get_current_user
 from app.core.security import hash_password
 from app.db.session import get_db
-from app.models.company_settings import CompanySettings
 from app.models.project import Project
 from app.models.shop_point import ShopPoint
 from app.models.user import User
@@ -21,6 +20,11 @@ from app.models.user_project_access import UserProjectAccess
 from app.models.user_role import UserRole
 from app.models.user_group import UserGroup
 from app.models.user_group_member import UserGroupMember
+from app.models.user_company_access import UserCompanyAccess
+from app.models.user_company_distribution import UserCompanyDistribution
+from app.models.company import Company
+from app.models.company_settings import CompanySettings
+from app.models.user_company_reports import UserCompanyReports
 from app.schemas.access import (
   BulkAssignRequest,
   BulkAssignResponse,
@@ -29,6 +33,8 @@ from app.schemas.access import (
   UserProjectAccessReplaceRequest,
   UserProjectAccessResponse,
 )
+from app.schemas.projects import ShopPointsResponse
+from app.api.routes.projects import to_shop_point_item  # type: ignore
 from app.schemas.company import CompanyPublic
 from app.schemas.team import (
   TeamCreateUserRequest,
@@ -54,6 +60,15 @@ from app.schemas.groups import (
   UserGroupsForUserResponse,
   UserGroupsResponse,
 )
+from app.schemas.distribution import (
+  CompanyFilterValuesResponse,
+  DistributionCompanyItem,
+  ReplaceUserCompaniesAccessRequest,
+  ReplaceUserCompanyDistributionRequest,
+  UserCompaniesAccessResponse,
+  UserCompanyDistributionResponse,
+)
+from app.schemas.reports_access import ReplaceUserCompanyReportsRequest, UserCompanyReportsResponse
 
 
 router = APIRouter()
@@ -1242,4 +1257,327 @@ async def replace_user_groups (
   await db.commit()
 
   return await get_user_groups(user_id=user_id, db=db, current_user=current_user)
+
+
+async def _list_manageable_companies (db: AsyncSession, *, actor: User) -> list[tuple[Company, CompanySettings | None]]:
+  # owner: all companies they have access to
+  if (actor.platform_role or 'user') == 'owner':
+    stmt = (
+      select(Company, CompanySettings)
+      .join(OwnerCompanyAccess, OwnerCompanyAccess.company_id == Company.id)
+      .outerjoin(CompanySettings, CompanySettings.company_id == Company.id)
+      .where(OwnerCompanyAccess.owner_user_id == actor.id)
+      .order_by(Company.created_at.desc())
+    )
+    res = await db.execute(stmt)
+    return list(res.all())
+
+  # non-owner: only their active company
+  cid = _company_id(actor)
+  stmt = select(Company, CompanySettings).outerjoin(CompanySettings, CompanySettings.company_id == Company.id).where(Company.id == cid)
+  res = await db.execute(stmt)
+  return list(res.all())
+
+
+@router.get('/users/{user_id}/companies-access', response_model=UserCompaniesAccessResponse, summary='Доступ пользователя к клиентам')
+async def get_user_companies_access (
+  user_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserCompaniesAccessResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  home_company_id = _company_id(current_user)
+  # manage only users from current company (home workspace)
+  await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
+
+  companies = await _list_manageable_companies(db, actor=current_user)
+  ids = [c.id for c, _ in companies]
+
+  res = await db.execute(select(UserCompanyAccess.company_id).where(UserCompanyAccess.user_id == user_id, UserCompanyAccess.company_id.in_(ids)))
+  granted = set(res.scalars().all())
+
+  items = []
+  for c, s in companies:
+    items.append(
+      DistributionCompanyItem(
+        id=c.id,
+        name=c.name,
+        baseApProjectId=(s.base_ap_project_id if s is not None else None),
+        hasAccess=c.id in granted or c.id == home_company_id,
+      ),
+    )
+  return UserCompaniesAccessResponse(userId=user_id, items=items)
+
+
+@router.put('/users/{user_id}/companies-access', response_model=UserCompaniesAccessResponse, summary='Заменить доступ пользователя к клиентам')
+async def replace_user_companies_access (
+  payload: ReplaceUserCompaniesAccessRequest,
+  user_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserCompaniesAccessResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  home_company_id = _company_id(current_user)
+  await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
+
+  companies = await _list_manageable_companies(db, actor=current_user)
+  allowed_ids = {c.id for c, _ in companies}
+
+  next_ids = set(payload.companyIds)
+  # always keep home company
+  next_ids.add(home_company_id)
+
+  if not next_ids.issubset(allowed_ids):
+    raise HTTPException(status_code=400, detail='Некоторые клиенты недоступны для назначения')
+
+  # replace: delete all grants in allowed scope except home
+  await db.execute(
+    delete(UserCompanyAccess).where(
+      UserCompanyAccess.user_id == user_id,
+      UserCompanyAccess.company_id.in_(list(allowed_ids - {home_company_id})),
+    ),
+  )
+  for cid in sorted(next_ids):
+    if cid == home_company_id:
+      continue
+    db.add(UserCompanyAccess(user_id=user_id, company_id=cid, created_by_user_id=current_user.id))
+
+  await db.commit()
+  return await get_user_companies_access(user_id=user_id, db=db, current_user=current_user)
+
+
+@router.get('/users/{user_id}/distribution/{company_id}', response_model=UserCompanyDistributionResponse, summary='Распределение пользователя по клиенту')
+async def get_user_company_distribution (
+  user_id: UUID = Path(...),
+  company_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserCompanyDistributionResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  home_company_id = _company_id(current_user)
+  await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
+
+  # require that actor can manage this company
+  manageable = await _list_manageable_companies(db, actor=current_user)
+  allowed_company_ids = {c.id for c, _ in manageable}
+  if company_id not in allowed_company_ids:
+    raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+
+  # require that user has access to this company (or home)
+  if company_id != home_company_id:
+    res = await db.execute(select(UserCompanyAccess.id).where(UserCompanyAccess.user_id == user_id, UserCompanyAccess.company_id == company_id))
+    if res.scalar_one_or_none() is None:
+      return UserCompanyDistributionResponse(userId=user_id, companyId=company_id, filterValues={}, pointIds=[])
+
+  # filters
+  dist_res = await db.execute(select(UserCompanyDistribution).where(UserCompanyDistribution.user_id == user_id, UserCompanyDistribution.company_id == company_id))
+  dist = dist_res.scalar_one_or_none()
+  filter_values = dist.filter_values if dist is not None else {}
+
+  # points from base AP
+  settings = await db.execute(select(CompanySettings).where(CompanySettings.company_id == company_id))
+  s = settings.scalar_one_or_none()
+  project_id = s.base_ap_project_id if s is not None else None
+  point_ids: list[UUID] = []
+  if project_id is not None:
+    pres = await db.execute(select(UserPointAccess.point_id).join(ShopPoint, ShopPoint.id == UserPointAccess.point_id).where(UserPointAccess.user_id == user_id, ShopPoint.project_id == project_id))
+    point_ids = list(pres.scalars().all())
+
+  return UserCompanyDistributionResponse(userId=user_id, companyId=company_id, filterValues=filter_values or {}, pointIds=point_ids)
+
+
+@router.put('/users/{user_id}/distribution/{company_id}', response_model=UserCompanyDistributionResponse, summary='Сохранить распределение пользователя по клиенту')
+async def replace_user_company_distribution (
+  payload: ReplaceUserCompanyDistributionRequest,
+  user_id: UUID = Path(...),
+  company_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserCompanyDistributionResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  home_company_id = _company_id(current_user)
+  await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
+
+  manageable = await _list_manageable_companies(db, actor=current_user)
+  allowed_company_ids = {c.id for c, _ in manageable}
+  if company_id not in allowed_company_ids:
+    raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+
+  # ensure user has access (or home)
+  if company_id != home_company_id:
+    res = await db.execute(select(UserCompanyAccess.id).where(UserCompanyAccess.user_id == user_id, UserCompanyAccess.company_id == company_id))
+    if res.scalar_one_or_none() is None:
+      raise HTTPException(status_code=400, detail='Сначала выдайте доступ пользователю к клиенту')
+
+  # upsert distribution
+  dist_res = await db.execute(select(UserCompanyDistribution).where(UserCompanyDistribution.user_id == user_id, UserCompanyDistribution.company_id == company_id))
+  dist = dist_res.scalar_one_or_none()
+  if dist is None:
+    dist = UserCompanyDistribution(user_id=user_id, company_id=company_id, filter_values=payload.filterValues or {}, updated_by_user_id=current_user.id)
+    db.add(dist)
+  else:
+    dist.filter_values = payload.filterValues or {}
+    dist.updated_by_user_id = current_user.id
+
+  # replace point bindings only within base AP of that company
+  settings_res = await db.execute(select(CompanySettings).where(CompanySettings.company_id == company_id))
+  s = settings_res.scalar_one_or_none()
+  project_id = s.base_ap_project_id if s is not None else None
+  if project_id is not None:
+    allowed_points = set()
+    pids = list(dict.fromkeys(payload.pointIds or []))
+    if pids:
+      allowed_res = await db.execute(select(ShopPoint.id).where(ShopPoint.project_id == project_id, ShopPoint.id.in_(pids)))
+      allowed_points = set(allowed_res.scalars().all())
+      if len(allowed_points) != len(pids):
+        raise HTTPException(status_code=400, detail='Некоторые точки не найдены в АП')
+
+    base_point_ids = select(ShopPoint.id).where(ShopPoint.project_id == project_id)
+    await db.execute(delete(UserPointAccess).where(UserPointAccess.user_id == user_id, UserPointAccess.point_id.in_(base_point_ids)))
+    for pid in allowed_points:
+      db.add(UserPointAccess(user_id=user_id, point_id=pid, assigned_by_user_id=current_user.id))
+
+  await db.commit()
+  return await get_user_company_distribution(user_id=user_id, company_id=company_id, db=db, current_user=current_user)
+
+
+@router.get('/distribution/{company_id}/filter-values', response_model=CompanyFilterValuesResponse, summary='Доступные значения фильтров клиента (по АП)')
+async def get_company_filter_values (
+  company_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> CompanyFilterValuesResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+
+  manageable = await _list_manageable_companies(db, actor=current_user)
+  allowed_company_ids = {c.id for c, _ in manageable}
+  if company_id not in allowed_company_ids:
+    raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+
+  settings_res = await db.execute(select(CompanySettings).where(CompanySettings.company_id == company_id))
+  s = settings_res.scalar_one_or_none()
+  if s is None or s.base_ap_project_id is None:
+    return CompanyFilterValuesResponse(companyId=company_id, items=[])
+
+  filters_def = list(s.filters or [])
+  keys = []
+  titles_by_key: dict[str, str] = {}
+  for f in filters_def:
+    if isinstance(f, dict) and isinstance(f.get('key'), str):
+      keys.append(f['key'])
+      if isinstance(f.get('title'), str) and f.get('title'):
+        titles_by_key[f['key']] = f['title']
+
+  if not keys:
+    return CompanyFilterValuesResponse(companyId=company_id, items=[])
+
+  # load points and collect unique values
+  res = await db.execute(select(ShopPoint).where(ShopPoint.project_id == s.base_ap_project_id))
+  points = res.scalars().all()
+
+  out = []
+  for key in keys:
+    seen: set[str] = set()
+    vals: list[str] = []
+    for p in points:
+      v = None
+      if key == 'region':
+        v = p.region_code
+      elif key == 'city':
+        v = p.city_name
+      else:
+        raw = (p.attrs or {}).get(str(key))
+        if isinstance(raw, str):
+          v = raw
+      if not v:
+        continue
+      s_v = str(v).strip()
+      if not s_v or s_v in seen:
+        continue
+      seen.add(s_v)
+      vals.append(s_v)
+      if len(vals) >= 250:
+        break
+    out.append({'key': key, 'title': titles_by_key.get(key), 'values': sorted(vals)})
+
+  return CompanyFilterValuesResponse(companyId=company_id, items=out)
+
+
+@router.get('/users/{user_id}/reports/{company_id}', response_model=UserCompanyReportsResponse, summary='Доступные отчёты пользователя по клиенту')
+async def get_user_company_reports (
+  user_id: UUID = Path(...),
+  company_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserCompanyReportsResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  home_company_id = _company_id(current_user)
+  await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
+
+  manageable = await _list_manageable_companies(db, actor=current_user)
+  allowed_company_ids = {c.id for c, _ in manageable}
+  if company_id not in allowed_company_ids:
+    raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+
+  if company_id != home_company_id:
+    res = await db.execute(select(UserCompanyAccess.id).where(UserCompanyAccess.user_id == user_id, UserCompanyAccess.company_id == company_id))
+    if res.scalar_one_or_none() is None:
+      return UserCompanyReportsResponse(userId=user_id, companyId=company_id, reportKeys=[])
+
+  res = await db.execute(select(UserCompanyReports).where(UserCompanyReports.user_id == user_id, UserCompanyReports.company_id == company_id))
+  row = res.scalar_one_or_none()
+  return UserCompanyReportsResponse(userId=user_id, companyId=company_id, reportKeys=(row.report_keys if row is not None else []))
+
+
+@router.put('/users/{user_id}/reports/{company_id}', response_model=UserCompanyReportsResponse, summary='Сохранить доступные отчёты пользователя по клиенту')
+async def replace_user_company_reports (
+  payload: ReplaceUserCompanyReportsRequest,
+  user_id: UUID = Path(...),
+  company_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> UserCompanyReportsResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+  home_company_id = _company_id(current_user)
+  await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
+
+  manageable = await _list_manageable_companies(db, actor=current_user)
+  allowed_company_ids = {c.id for c, _ in manageable}
+  if company_id not in allowed_company_ids:
+    raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+
+  if company_id != home_company_id:
+    res = await db.execute(select(UserCompanyAccess.id).where(UserCompanyAccess.user_id == user_id, UserCompanyAccess.company_id == company_id))
+    if res.scalar_one_or_none() is None:
+      raise HTTPException(status_code=400, detail='Сначала выдайте доступ пользователю к клиенту')
+
+  keys = []
+  seen = set()
+  for k in payload.reportKeys or []:
+    v = str(k or '').strip()
+    if not v or v in seen:
+      continue
+    seen.add(v)
+    keys.append(v[:80])
+    if len(keys) >= 300:
+      break
+
+  res = await db.execute(select(UserCompanyReports).where(UserCompanyReports.user_id == user_id, UserCompanyReports.company_id == company_id))
+  row = res.scalar_one_or_none()
+  if row is None:
+    row = UserCompanyReports(user_id=user_id, company_id=company_id, report_keys=keys, updated_by_user_id=current_user.id)
+    db.add(row)
+  else:
+    row.report_keys = keys
+    row.updated_by_user_id = current_user.id
+
+  await db.commit()
+  return await get_user_company_reports(user_id=user_id, company_id=company_id, db=db, current_user=current_user)
 

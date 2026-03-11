@@ -76,6 +76,12 @@
   opacity: 0.72;
 }
 
+.hint {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.72;
+}
+
 .value {
   font-weight: 500;
   word-break: break-word;

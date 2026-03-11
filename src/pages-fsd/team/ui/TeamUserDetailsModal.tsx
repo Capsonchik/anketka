@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Checkbox, Input, Modal, Nav, SelectPicker } from 'rsuite'
+import { CheckPicker, Checkbox, Input, Modal, Nav, SelectPicker } from 'rsuite'
 import Image from 'next/image'
 
 import axiosMainRequest from '@/api-config/api-config'
@@ -9,8 +9,16 @@ import { apiRoutes } from '@/api-config/api-routes'
 import { userRoleLabel } from '@/entities/user'
 import { userRoleOptions, type UserRole } from '@/entities/user'
 import { Button } from '@/shared/ui'
+import type { ShopPointItem, ShopPointsResponse } from '@/pages-fsd/project/model/types'
 import type {
+  CompanyFilterValuesResponse,
+  ReplaceUserCompaniesAccessRequest,
+  ReplaceUserCompanyDistributionRequest,
+  ReplaceUserCompanyReportsRequest,
   TeamUserDetailsResponse,
+  UserCompaniesAccessResponse,
+  UserCompanyDistributionResponse,
+  UserCompanyReportsResponse,
   UserGroupsForUserResponse,
   UserGroupsResponse,
   UserPointAccessResponse,
@@ -73,6 +81,27 @@ const DEFAULTS: Record<UserRole, string[]> = {
   ],
   client: ['media.photo.view', 'survey.pdf.view', 'notifications.inbox'],
 }
+
+function uniq (arr: string[]) {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const x of arr) {
+    const v = String(x || '').trim()
+    if (!v || seen.has(v)) continue
+    seen.add(v)
+    out.push(v)
+  }
+  return out
+}
+
+const REPORTS: Array<{ key: string; label: string }> = [
+  { key: 'checks.summary', label: 'Сводка по проверкам' },
+  { key: 'checks.by-region', label: 'Проверки по регионам' },
+  { key: 'appeals.summary', label: 'Апелляции' },
+  { key: 'auditors.activity', label: 'Активность аудиторов' },
+  { key: 'media.usage', label: 'Медиа (фото/видео)' },
+  { key: 'exports.history', label: 'История выгрузок' },
+]
 
 export function TeamUserDetailsModal ({
   open,
@@ -149,6 +178,27 @@ export function TeamUserDetailsModal ({
   const [allGroups, setAllGroups] = useState<Array<{ id: string; name: string }>>([])
   const [groupsError, setGroupsError] = useState<string | null>(null)
 
+  const [companiesAccess, setCompaniesAccess] = useState<UserCompaniesAccessResponse | null>(null)
+  const [companiesError, setCompaniesError] = useState<string | null>(null)
+  const [activeDistributionCompanyId, setActiveDistributionCompanyId] = useState<string | null>(null)
+  const [dist, setDist] = useState<UserCompanyDistributionResponse | null>(null)
+  const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({})
+  const [filterTitles, setFilterTitles] = useState<Record<string, string>>({})
+  const [distError, setDistError] = useState<string | null>(null)
+  const [distDraft, setDistDraft] = useState<ReplaceUserCompanyDistributionRequest>({ filterValues: {}, pointIds: [] })
+  const [isDistSaving, setIsDistSaving] = useState(false)
+
+  const [points, setPoints] = useState<ShopPointItem[]>([])
+  const [pointsLoading, setPointsLoading] = useState(false)
+  const [pointsQ, setPointsQ] = useState('')
+  const [pointsRegion, setPointsRegion] = useState<string | null>(null)
+
+  const [reportsCompanyId, setReportsCompanyId] = useState<string | null>(null)
+  const [reports, setReports] = useState<UserCompanyReportsResponse | null>(null)
+  const [reportsDraft, setReportsDraft] = useState<ReplaceUserCompanyReportsRequest>({ reportKeys: [] })
+  const [reportsError, setReportsError] = useState<string | null>(null)
+  const [isReportsSaving, setIsReportsSaving] = useState(false)
+
   useEffect(() => {
     setForm(initialForm)
   }, [initialForm])
@@ -188,6 +238,165 @@ export function TeamUserDetailsModal ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user?.id, canEdit])
+
+  useEffect(() => {
+    const uid = user?.id
+    if (!open || !uid || !canEdit) {
+      setCompaniesAccess(null)
+      setCompaniesError(null)
+      setActiveDistributionCompanyId(null)
+      setDist(null)
+      setFilterOptions({})
+      setDistError(null)
+      return
+    }
+    let isAlive = true
+    setCompaniesError(null)
+    axiosMainRequest
+      .get<UserCompaniesAccessResponse>(apiRoutes.team.userCompaniesAccess(uid))
+      .then((res) => {
+        if (!isAlive) return
+        setCompaniesAccess(res.data)
+        const first = res.data.items?.[0]?.id ?? null
+        setActiveDistributionCompanyId((prev) => prev ?? first)
+      })
+      .catch((err: unknown) => {
+        if (!isAlive) return
+        setCompaniesAccess(null)
+        setCompaniesError(err instanceof Error ? err.message : 'Не удалось загрузить клиентов')
+      })
+    return () => {
+      isAlive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, user?.id, canEdit])
+
+  useEffect(() => {
+    const uid = user?.id
+    const cid = activeDistributionCompanyId
+    if (!open || !uid || !cid || !canEdit) {
+      setDist(null)
+      setFilterOptions({})
+      setDistError(null)
+      return
+    }
+    let isAlive = true
+    setDistError(null)
+    Promise.all([
+      axiosMainRequest.get<UserCompanyDistributionResponse>(apiRoutes.team.userCompanyDistribution(uid, cid)),
+      axiosMainRequest.get<CompanyFilterValuesResponse>(apiRoutes.team.companyFilterValues(cid)),
+    ])
+      .then(([dRes, fRes]) => {
+        if (!isAlive) return
+        setDist(dRes.data)
+        const map: Record<string, string[]> = {}
+        const titles: Record<string, string> = {}
+        for (const it of fRes.data.items ?? []) {
+          map[it.key] = it.values ?? []
+          if (it.title) titles[it.key] = it.title
+        }
+        setFilterOptions(map)
+        setFilterTitles(titles)
+      })
+      .catch((err: unknown) => {
+        if (!isAlive) return
+        setDist(null)
+        setFilterOptions({})
+        setFilterTitles({})
+        setDistError(err instanceof Error ? err.message : 'Не удалось загрузить распределение')
+      })
+    return () => {
+      isAlive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, user?.id, activeDistributionCompanyId, canEdit])
+
+  useEffect(() => {
+    if (!dist) return
+    setDistDraft({
+      filterValues: (dist.filterValues ?? {}) as Record<string, string[]>,
+      pointIds: dist.pointIds ?? [],
+    })
+  }, [dist])
+
+  useEffect(() => {
+    if (!companiesAccess?.items?.length) return
+    setReportsCompanyId((prev) => prev ?? companiesAccess.items[0].id)
+  }, [companiesAccess?.items])
+
+  useEffect(() => {
+    const uid = user?.id
+    const cid = reportsCompanyId
+    if (!open || !uid || !cid || !canEdit) {
+      setReports(null)
+      setReportsDraft({ reportKeys: [] })
+      setReportsError(null)
+      return
+    }
+    let isAlive = true
+    setReportsError(null)
+    axiosMainRequest
+      .get<UserCompanyReportsResponse>(apiRoutes.team.userCompanyReports(uid, cid))
+      .then((res) => {
+        if (!isAlive) return
+        setReports(res.data)
+        setReportsDraft({ reportKeys: res.data.reportKeys ?? [] })
+      })
+      .catch((err: unknown) => {
+        if (!isAlive) return
+        setReports(null)
+        setReportsDraft({ reportKeys: [] })
+        setReportsError(err instanceof Error ? err.message : 'Не удалось загрузить отчёты')
+      })
+    return () => {
+      isAlive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, user?.id, reportsCompanyId, canEdit])
+
+  useEffect(() => {
+    const uid = user?.id
+    const cid = activeDistributionCompanyId
+    if (!open || !uid || !cid || !canEdit || actualMode !== 'edit') {
+      setPoints([])
+      setPointsLoading(false)
+      return
+    }
+    const company = (companiesAccess?.items ?? []).find((x) => x.id === cid)
+    const projectId = company?.baseApProjectId
+    if (!projectId) {
+      setPoints([])
+      setPointsLoading(false)
+      return
+    }
+
+    let isAlive = true
+    setPointsLoading(true)
+    const t = window.setTimeout(() => {
+      const params: Record<string, string> = {}
+      if (pointsQ.trim()) params.q = pointsQ.trim()
+      if (pointsRegion) params.regionCode = pointsRegion
+      axiosMainRequest
+        .get<ShopPointsResponse>(apiRoutes.projects.addressbook(projectId), { params, headers: { 'X-Company-Id': cid } })
+        .then((res) => {
+          if (!isAlive) return
+          setPoints(res.data.items ?? [])
+        })
+        .catch(() => {
+          if (!isAlive) return
+          setPoints([])
+        })
+        .finally(() => {
+          if (!isAlive) return
+          setPointsLoading(false)
+        })
+    }, 250)
+
+    return () => {
+      isAlive = false
+      window.clearTimeout(t)
+    }
+  }, [actualMode, canEdit, companiesAccess?.items, open, pointsQ, pointsRegion, user?.id, activeDistributionCompanyId])
 
   useEffect(() => {
     const uid = user?.id
@@ -337,10 +546,252 @@ export function TeamUserDetailsModal ({
                     </div>
                   </div>
                 )
+              ) : tab === 'distribution' ? (
+                <div className={styles.grid}>
+                  {companiesError ? <div className={styles.error}>{companiesError}</div> : null}
+                  {distError ? <div className={styles.error}>{distError}</div> : null}
+
+                  <FieldEdit label="Клиент">
+                    <SelectPicker
+                      value={activeDistributionCompanyId}
+                      onChange={(v) => setActiveDistributionCompanyId((v as string | null) ?? null)}
+                      data={(companiesAccess?.items ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                      cleanable={false}
+                      searchable
+                      block
+                      disabled={!companiesAccess?.items?.length}
+                    />
+                  </FieldEdit>
+
+                  <div className={styles.row}>
+                    <div className={styles.label}>Доступ к клиенту</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <Checkbox
+                        checked={Boolean(
+                          (companiesAccess?.items ?? []).find((c) => c.id === activeDistributionCompanyId)?.hasAccess,
+                        )}
+                        disabled={!activeDistributionCompanyId || !companiesAccess}
+                        onChange={(_, next) => {
+                          if (!user?.id || !companiesAccess || !activeDistributionCompanyId) return
+                          const cid = activeDistributionCompanyId
+                          const prev = companiesAccess.items ?? []
+                          const nextIds = new Set(prev.filter((x) => x.hasAccess).map((x) => x.id))
+                          if (next) nextIds.add(cid)
+                          else nextIds.delete(cid)
+                          const payload: ReplaceUserCompaniesAccessRequest = { companyIds: [...nextIds] }
+                          axiosMainRequest
+                            .put<UserCompaniesAccessResponse>(apiRoutes.team.userCompaniesAccess(user.id), payload)
+                            .then((res) => setCompaniesAccess(res.data))
+                            .catch(() => null)
+                        }}
+                      >
+                        Разрешить доступ
+                      </Checkbox>
+                      <div className={styles.hint}>
+                        Если доступ выключен — пользователь не сможет переключиться на этого клиента в селекторе.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.row}>
+                    <div className={styles.label}>Характеристики точки</div>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      {(Object.keys(filterOptions) || []).length ? (
+                        Object.entries(filterOptions).map(([key, values]) => (
+                          <div key={key} style={{ display: 'grid', gap: 6 }}>
+                            <div className={styles.hint}>{filterTitles[key] ? `${filterTitles[key]} (${key})` : key}</div>
+                            <CheckPicker
+                              data={(values ?? []).map((v) => ({ value: v, label: v }))}
+                              value={distDraft.filterValues?.[key] ?? []}
+                              onChange={(v) => {
+                                setDistDraft((prev) => ({
+                                  ...prev,
+                                  filterValues: { ...(prev.filterValues ?? {}), [key]: uniq((v as string[]) ?? []) },
+                                }))
+                              }}
+                              block
+                              disabled={actualMode !== 'edit'}
+                              placeholder="Выберите значения…"
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        <div className={styles.hint}>Фильтры не настроены или АП не загружена</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={styles.row}>
+                    <div className={styles.label}>Локации</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <Input
+                          value={pointsQ}
+                          onChange={(v) => setPointsQ(String(v ?? ''))}
+                          placeholder="Поиск по коду/адресу…"
+                          disabled={actualMode !== 'edit'}
+                        />
+                        <SelectPicker
+                          value={pointsRegion}
+                          onChange={(v) => setPointsRegion((v as string | null) ?? null)}
+                          data={(filterOptions.region ?? []).map((v) => ({ value: v, label: v }))}
+                          placeholder="Регион…"
+                          searchable
+                          block
+                          disabled={actualMode !== 'edit' || !(filterOptions.region ?? []).length}
+                          cleanable
+                          style={{ minWidth: 220 }}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={actualMode !== 'edit' || pointsLoading || !points.length}
+                          onClick={() => {
+                            setDistDraft((prev) => ({ ...prev, pointIds: uniq([...(prev.pointIds ?? []), ...points.map((p) => p.id)]) }))
+                          }}
+                        >
+                          Выбрать видимые
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={actualMode !== 'edit' || pointsLoading || !points.length}
+                          onClick={() => {
+                            const visible = new Set(points.map((p) => p.id))
+                            setDistDraft((prev) => ({ ...prev, pointIds: (prev.pointIds ?? []).filter((id) => !visible.has(id)) }))
+                          }}
+                        >
+                          Снять видимые
+                        </Button>
+                      </div>
+
+                      {pointsLoading ? <div className={styles.hint}>Загрузка точек…</div> : null}
+                      <div className={styles.hint}>Выбрано точек: {distDraft.pointIds?.length ?? 0}</div>
+
+                      <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 12, padding: 8 }}>
+                        {points.map((p) => {
+                          const checked = (distDraft.pointIds ?? []).includes(p.id)
+                          return (
+                            <div key={p.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '6px 2px' }}>
+                              <Checkbox
+                                checked={checked}
+                                disabled={actualMode !== 'edit'}
+                                onChange={(_, next) => {
+                                  setDistDraft((prev) => {
+                                    const set = new Set(prev.pointIds ?? [])
+                                    if (next) set.add(p.id)
+                                    else set.delete(p.id)
+                                    return { ...prev, pointIds: [...set] }
+                                  })
+                                }}
+                              />
+                              <div style={{ display: 'grid', gap: 2 }}>
+                                <div style={{ fontWeight: 500 }}>{p.code}{p.pointName ? ` · ${p.pointName}` : ''}</div>
+                                <div className={styles.hint}>{[p.regionCode && `рег. ${p.regionCode}`, p.cityName, p.address].filter(Boolean).join(' · ') || '—'}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        {!points.length && !pointsLoading ? <div className={styles.hint}>Точек не найдено</div> : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      disabled={actualMode !== 'edit' || !user?.id || !activeDistributionCompanyId || isDistSaving}
+                      onClick={() => {
+                        if (!user?.id || !activeDistributionCompanyId) return
+                        setIsDistSaving(true)
+                        setDistError(null)
+                        const payload: ReplaceUserCompanyDistributionRequest = {
+                          filterValues: distDraft.filterValues ?? {},
+                          pointIds: distDraft.pointIds ?? [],
+                        }
+                        axiosMainRequest
+                          .put<UserCompanyDistributionResponse>(apiRoutes.team.userCompanyDistribution(user.id, activeDistributionCompanyId), payload)
+                          .then((res) => setDist(res.data))
+                          .catch((err: unknown) => setDistError(err instanceof Error ? err.message : 'Не удалось сохранить'))
+                          .finally(() => setIsDistSaving(false))
+                      }}
+                    >
+                      {isDistSaving ? 'Сохранение…' : 'Сохранить распределение'}
+                    </Button>
+                  </div>
+                </div>
               ) : tab !== 'profile' ? (
                 <div className={styles.grid}>
-                  {tab === 'distribution' ? <Field label="Распределение (клиенты/локации)" value="MVP: в разработке" /> : null}
-                  {tab === 'reports' ? <Field label="Отчёты" value="MVP: в разработке" /> : null}
+                  {tab === 'reports' ? (
+                    <div className={styles.grid}>
+                      {reportsError ? <div className={styles.error}>{reportsError}</div> : null}
+                      <FieldEdit label="Клиент">
+                        <SelectPicker
+                          value={reportsCompanyId}
+                          onChange={(v) => setReportsCompanyId((v as string | null) ?? null)}
+                          data={(companiesAccess?.items ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                          cleanable={false}
+                          searchable
+                          block
+                          disabled={!companiesAccess?.items?.length}
+                        />
+                      </FieldEdit>
+
+                      <div className={styles.row}>
+                        <div className={styles.label}>Доступные отчёты</div>
+                        <div style={{ display: 'grid', gap: 6 }}>
+                          {REPORTS.map((r) => {
+                            const checked = (reportsDraft.reportKeys ?? []).includes(r.key)
+                            return (
+                              <Checkbox
+                                key={r.key}
+                                checked={checked}
+                                disabled={actualMode !== 'edit'}
+                                onChange={(_, next) => {
+                                  setReportsDraft((prev) => {
+                                    const set = new Set(prev.reportKeys ?? [])
+                                    if (next) set.add(r.key)
+                                    else set.delete(r.key)
+                                    return { ...prev, reportKeys: [...set] }
+                                  })
+                                }}
+                              >
+                                {r.label}
+                              </Checkbox>
+                            )
+                          })}
+                          <div className={styles.hint}>Выбрано: {reportsDraft.reportKeys?.length ?? 0}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          disabled={actualMode !== 'edit' || !user?.id || !reportsCompanyId || isReportsSaving}
+                          onClick={() => {
+                            if (!user?.id || !reportsCompanyId) return
+                            setIsReportsSaving(true)
+                            setReportsError(null)
+                            const payload: ReplaceUserCompanyReportsRequest = { reportKeys: reportsDraft.reportKeys ?? [] }
+                            axiosMainRequest
+                              .put<UserCompanyReportsResponse>(apiRoutes.team.userCompanyReports(user.id, reportsCompanyId), payload)
+                              .then((res) => {
+                                setReports(res.data)
+                                setReportsDraft({ reportKeys: res.data.reportKeys ?? [] })
+                              })
+                              .catch((err: unknown) => setReportsError(err instanceof Error ? err.message : 'Не удалось сохранить'))
+                              .finally(() => setIsReportsSaving(false))
+                          }}
+                        >
+                          {isReportsSaving ? 'Сохранение…' : 'Сохранить'}
+                        </Button>
+                      </div>
+
+                      {reports?.reportKeys?.length ? <div className={styles.hint}>Сохранено ключей: {reports.reportKeys.length}</div> : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : actualMode === 'view' ? (
                 <div className={styles.grid}>

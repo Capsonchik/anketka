@@ -6,6 +6,7 @@ export type ClientItem = {
   backgroundUrl: string | null
   theme: Record<string, unknown>
   filters: unknown[]
+  isArchived: boolean
   baseApProjectId: string | null
   createdAt: string
 }
@@ -21,7 +22,7 @@ export type CreateClientRequest = {
   filters: unknown[]
 }
 
-export type UpdateClientRequest = Partial<CreateClientRequest>
+export type UpdateClientRequest = Partial<CreateClientRequest> & { isArchived?: boolean }
 
 export type ClientApUploadResponse = {
   clientId: string

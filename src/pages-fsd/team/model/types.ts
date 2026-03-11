@@ -105,6 +105,49 @@ export type ReplaceUserGroupsForUserRequest = {
   groupIds: string[]
 }
 
+export type DistributionCompanyItem = {
+  id: string
+  name: string
+  baseApProjectId: string | null
+  hasAccess: boolean
+}
+
+export type UserCompaniesAccessResponse = {
+  userId: string
+  items: DistributionCompanyItem[]
+}
+
+export type ReplaceUserCompaniesAccessRequest = {
+  companyIds: string[]
+}
+
+export type UserCompanyDistributionResponse = {
+  userId: string
+  companyId: string
+  filterValues: Record<string, string[]>
+  pointIds: string[]
+}
+
+export type ReplaceUserCompanyDistributionRequest = {
+  filterValues: Record<string, string[]>
+  pointIds: string[]
+}
+
+export type CompanyFilterValuesResponse = {
+  companyId: string
+  items: Array<{ key: string; title?: string | null; values: string[] }>
+}
+
+export type UserCompanyReportsResponse = {
+  userId: string
+  companyId: string
+  reportKeys: string[]
+}
+
+export type ReplaceUserCompanyReportsRequest = {
+  reportKeys: string[]
+}
+
 export type UserProjectAccessItem = {
   projectId: string
   accessRole: 'controller' | 'coordinator'

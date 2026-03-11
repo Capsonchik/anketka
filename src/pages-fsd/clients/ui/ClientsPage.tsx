@@ -9,6 +9,7 @@ import { apiRoutes } from '@/api-config/api-routes'
 import type { ClientItem, ClientsResponse } from '../model/types'
 import { ClientOwnersModal } from './ClientOwnersModal'
 import { ClientCreateWizardModal } from '@/pages-fsd/clients/ui/ClientCreateWizardModal'
+import { ClientEditModal } from './ClientEditModal'
 
 import styles from './ClientsPage.module.css'
 
@@ -26,6 +27,9 @@ export function ClientsPage () {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isWizardOpen, setIsWizardOpen] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [editClient, setEditClient] = useState<ClientItem | null>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [ownersClientId, setOwnersClientId] = useState<string | null>(null)
   const [ownersClientName, setOwnersClientName] = useState<string | null>(null)
   const [isOwnersOpen, setIsOwnersOpen] = useState(false)
@@ -34,7 +38,7 @@ export function ClientsPage () {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await axiosMainRequest.get<ClientsResponse>(apiRoutes.clients.clients)
+      const res = await axiosMainRequest.get<ClientsResponse>(`${apiRoutes.clients.clients}?includeArchived=${String(showArchived)}`)
       setClients(res.data.items ?? [])
     } catch (err: unknown) {
       setClients([])
@@ -46,20 +50,25 @@ export function ClientsPage () {
 
   useEffect(() => {
     loadClients()
-  }, [])
+  }, [showArchived])
 
   return (
     <div className={styles.page}>
       <div className={styles.headerRow}>
         <h1 className="titleH1">Клиенты</h1>
-        <button
-          type="button"
-          className={styles.addIconButton}
-          aria-label="Создать клиента"
-          onClick={() => setIsWizardOpen(true)}
-        >
-          <Image src="/icons/add.svg" alt="" width={18} height={18} aria-hidden="true" />
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <label className={styles.subTitle} style={{ marginTop: 0 }}>
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Показать архив
+          </label>
+          <button
+            type="button"
+            className={styles.addIconButton}
+            aria-label="Создать клиента"
+            onClick={() => setIsWizardOpen(true)}
+          >
+            <Image src="/icons/add.svg" alt="" width={18} height={18} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <div className={styles.subTitle}>Создавайте клиентов и настраивайте их базовые параметры, АП и пользователей.</div>
@@ -79,8 +88,36 @@ export function ClientsPage () {
                   <span>Категория: {c.category || '—'}</span>
                   <span>Создан: {fmtDt(c.createdAt)}</span>
                   <span>АП: {c.baseApProjectId ? 'загружена' : '—'}</span>
+                  <span>{c.isArchived ? 'Архив' : 'Активен'}</span>
                 </div>
                 <div className={styles.cardActions}>
+                  <button
+                    type="button"
+                    className={styles.cardButton}
+                    onClick={() => {
+                      setEditClient(c)
+                      setIsEditOpen(true)
+                    }}
+                  >
+                    Редактировать
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.cardButton}
+                    onClick={async () => {
+                      const next = !c.isArchived
+                      const q = next ? 'Архивировать клиента?' : 'Вернуть из архива?'
+                      if (!window.confirm(q)) return
+                      try {
+                        await axiosMainRequest.patch(apiRoutes.clients.client(c.id), { isArchived: next })
+                        await loadClients()
+                      } catch (err: unknown) {
+                        setError(getApiErrorMessage(err))
+                      }
+                    }}
+                  >
+                    {c.isArchived ? 'Разархивировать' : 'Архивировать'}
+                  </button>
                   <button
                     type="button"
                     className={styles.cardButton}
@@ -116,6 +153,20 @@ export function ClientsPage () {
           setIsOwnersOpen(false)
           setOwnersClientId(null)
           setOwnersClientName(null)
+        }}
+      />
+
+      <ClientEditModal
+        open={isEditOpen}
+        client={editClient}
+        onClose={() => {
+          setIsEditOpen(false)
+          setEditClient(null)
+        }}
+        onSaved={() => {
+          setIsEditOpen(false)
+          setEditClient(null)
+          loadClients()
         }}
       />
     </div>

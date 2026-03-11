@@ -16,6 +16,7 @@ class UpdateClientRequest(BaseModel):
   name: str | None = Field(default=None, min_length=1, max_length=200)
   theme: dict | None = None
   filters: list | None = None
+  isArchived: bool | None = None
 
 
 class ClientPublic(BaseModel):
@@ -28,6 +29,7 @@ class ClientPublic(BaseModel):
 
   theme: dict
   filters: list
+  isArchived: bool = False
 
   baseApProjectId: UUID | None = None
 

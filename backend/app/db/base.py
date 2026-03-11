@@ -31,4 +31,7 @@ from app.models.user_project_access import UserProjectAccess  # noqa: E402,F401
 from app.models.user_point_access import UserPointAccess  # noqa: E402,F401
 from app.models.user_group import UserGroup  # noqa: E402,F401
 from app.models.user_group_member import UserGroupMember  # noqa: E402,F401
+from app.models.user_company_access import UserCompanyAccess  # noqa: E402,F401
+from app.models.user_company_distribution import UserCompanyDistribution  # noqa: E402,F401
+from app.models.user_company_reports import UserCompanyReports  # noqa: E402,F401
 

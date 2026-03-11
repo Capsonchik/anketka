@@ -32,6 +32,10 @@ export const apiRoutes = {
     groupMembersImport: (groupId: string) => `${ROUTES.team}/groups/${groupId}/members/import`,
     groupAddByEmail: (groupId: string) => `${ROUTES.team}/groups/${groupId}/members/add-by-email`,
     userGroups: (userId: string) => `${ROUTES.team}/users/${userId}/groups`,
+    userCompaniesAccess: (userId: string) => `${ROUTES.team}/users/${userId}/companies-access`,
+    userCompanyDistribution: (userId: string, companyId: string) => `${ROUTES.team}/users/${userId}/distribution/${companyId}`,
+    companyFilterValues: (companyId: string) => `${ROUTES.team}/distribution/${companyId}/filter-values`,
+    userCompanyReports: (userId: string, companyId: string) => `${ROUTES.team}/users/${userId}/reports/${companyId}`,
     bulkProjectAccess: `${ROUTES.team}/users/project-access/bulk`,
   },
   clients: {

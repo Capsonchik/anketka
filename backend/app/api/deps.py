@@ -11,6 +11,7 @@ from app.core.security import decode_token
 from app.db.session import get_db
 from app.models.auditor import Auditor
 from app.models.owner_company_access import OwnerCompanyAccess
+from app.models.user_company_access import UserCompanyAccess
 from app.models.user import User
 
 
@@ -73,6 +74,23 @@ async def get_current_user (
       raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
 
     active_company_id = requested
+  elif x_company_id and x_company_id.strip():
+    # Non-owner: allow switching only to companies explicitly granted
+    try:
+      requested = UUID(x_company_id.strip())
+    except Exception:
+      raise HTTPException(status_code=400, detail='Некорректный X-Company-Id')
+
+    if requested != user.company_id:
+      access_res = await db.execute(
+        select(UserCompanyAccess.id).where(
+          UserCompanyAccess.user_id == user.id,
+          UserCompanyAccess.company_id == requested,
+        ),
+      )
+      if access_res.scalar_one_or_none() is None:
+        raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+      active_company_id = requested
 
   # do NOT mutate mapped company_id; store request-scoped context separately
   setattr(user, 'active_company_id', active_company_id)
