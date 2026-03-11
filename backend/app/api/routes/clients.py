@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from PIL import Image, ImageOps
@@ -24,11 +24,14 @@ from app.models.user import User
 from app.models.user_role import UserRole
 from app.schemas.clients import (
   ClientApUploadResponse,
+  ClientOwnerItem,
+  ClientOwnersResponse,
   ClientPublic,
   ClientsResponse,
   ClientUsersImportError,
   ClientUsersImportResponse,
   CreateClientRequest,
+  GrantClientOwnerRequest,
   UpdateClientRequest,
 )
 from app.api.routes.projects import _get_or_create_chain  # type: ignore
@@ -687,4 +690,79 @@ async def import_client_users (
 
   await db.commit()
   return ClientUsersImportResponse(created=created, updated=updated, skipped=skipped, errors=None)
+
+
+@router.get('/{client_id}/owners', response_model=ClientOwnersResponse, summary='Овнеры клиента')
+async def list_client_owners (
+  client_id: UUID = Path(..., description='ID клиента'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> ClientOwnersResponse:
+  _ensure_owner(current_user)
+  await _ensure_owner_access(db, owner_user_id=current_user.id, company_id=client_id)
+
+  stmt = (
+    select(OwnerCompanyAccess.owner_user_id, User.email, OwnerCompanyAccess.created_at)
+    .join(User, User.id == OwnerCompanyAccess.owner_user_id)
+    .where(OwnerCompanyAccess.company_id == client_id)
+    .order_by(OwnerCompanyAccess.created_at.desc())
+  )
+  res = await db.execute(stmt)
+  items: list[ClientOwnerItem] = []
+  for user_id, email, created_at in res.all():
+    items.append(ClientOwnerItem(userId=user_id, email=email, createdAt=created_at))
+  return ClientOwnersResponse(clientId=client_id, items=items)
+
+
+@router.post('/{client_id}/owners', response_model=ClientOwnersResponse, summary='Выдать доступ овнеру по email')
+async def grant_client_owner (
+  payload: GrantClientOwnerRequest,
+  client_id: UUID = Path(..., description='ID клиента'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> ClientOwnersResponse:
+  _ensure_owner(current_user)
+  await _ensure_owner_access(db, owner_user_id=current_user.id, company_id=client_id)
+
+  res = await db.execute(select(User).where(func.lower(User.email) == str(payload.email).strip().lower()))
+  user = res.scalar_one_or_none()
+  if user is None:
+    raise HTTPException(status_code=404, detail='Пользователь не найден')
+
+  user.platform_role = 'owner'
+  db.add(OwnerCompanyAccess(owner_user_id=user.id, company_id=client_id))
+  try:
+    await db.commit()
+  except Exception:
+    await db.rollback()
+
+  return await list_client_owners(client_id=client_id, db=db, current_user=current_user)
+
+
+@router.delete('/{client_id}/owners/{owner_user_id}', response_model=ClientOwnersResponse, summary='Отозвать доступ овнера')
+async def revoke_client_owner (
+  client_id: UUID = Path(..., description='ID клиента'),
+  owner_user_id: UUID = Path(..., description='ID овнера'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> ClientOwnersResponse:
+  _ensure_owner(current_user)
+  await _ensure_owner_access(db, owner_user_id=current_user.id, company_id=client_id)
+
+  cnt_res = await db.execute(
+    select(func.count()).select_from(OwnerCompanyAccess).where(OwnerCompanyAccess.company_id == client_id),
+  )
+  owners_count = int(cnt_res.scalar_one() or 0)
+  if owners_count <= 1:
+    raise HTTPException(status_code=400, detail='Нельзя удалить последнего овнера клиента')
+
+  await db.execute(
+    OwnerCompanyAccess.__table__.delete().where(  # type: ignore
+      OwnerCompanyAccess.company_id == client_id,
+      OwnerCompanyAccess.owner_user_id == owner_user_id,
+    ),
+  )
+  await db.commit()
+
+  return await list_client_owners(client_id=client_id, db=db, current_user=current_user)
 

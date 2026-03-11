@@ -31,6 +31,7 @@ export const apiRoutes = {
   clients: {
     clients: `${ROUTES.clients}`,
     client: (clientId: string) => `${ROUTES.clients}/${clientId}`,
+    owners: (clientId: string) => `${ROUTES.clients}/${clientId}/owners`,
     logo: (clientId: string) => `${ROUTES.clients}/${clientId}/logo`,
     background: (clientId: string) => `${ROUTES.clients}/${clientId}/background`,
     apUpload: (clientId: string) => `${ROUTES.clients}/${clientId}/ap/upload`,

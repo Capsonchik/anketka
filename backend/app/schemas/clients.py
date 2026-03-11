@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class CreateClientRequest(BaseModel):
@@ -55,4 +55,19 @@ class ClientUsersImportResponse(BaseModel):
   updated: int
   skipped: int
   errors: list[ClientUsersImportError] | None = None
+
+
+class ClientOwnerItem(BaseModel):
+  userId: UUID
+  email: EmailStr
+  createdAt: datetime
+
+
+class ClientOwnersResponse(BaseModel):
+  clientId: UUID
+  items: list[ClientOwnerItem]
+
+
+class GrantClientOwnerRequest(BaseModel):
+  email: EmailStr
 

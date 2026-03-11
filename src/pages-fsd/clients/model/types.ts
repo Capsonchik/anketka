@@ -42,3 +42,18 @@ export type ClientUsersImportResponse = {
   errors?: ClientUsersImportError[] | null
 }
 
+export type ClientOwnerItem = {
+  userId: string
+  email: string
+  createdAt: string
+}
+
+export type ClientOwnersResponse = {
+  clientId: string
+  items: ClientOwnerItem[]
+}
+
+export type GrantClientOwnerRequest = {
+  email: string
+}
+

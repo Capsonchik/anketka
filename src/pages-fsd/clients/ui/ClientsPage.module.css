@@ -42,6 +42,23 @@
   padding: 12px;
 }
 
+.cardActions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cardButton {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+}
+
 .cardTitle {
   font-size: 14px;
   font-weight: 600;

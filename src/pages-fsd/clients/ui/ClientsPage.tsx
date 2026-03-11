@@ -7,7 +7,8 @@ import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 
 import type { ClientItem, ClientsResponse } from '../model/types'
-import { ClientCreateWizardModal } from './ClientCreateWizardModal'
+import { ClientOwnersModal } from './ClientOwnersModal'
+import { ClientCreateWizardModal } from '@/pages-fsd/clients/ui/ClientCreateWizardModal'
 
 import styles from './ClientsPage.module.css'
 
@@ -25,6 +26,9 @@ export function ClientsPage () {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isWizardOpen, setIsWizardOpen] = useState(false)
+  const [ownersClientId, setOwnersClientId] = useState<string | null>(null)
+  const [ownersClientName, setOwnersClientName] = useState<string | null>(null)
+  const [isOwnersOpen, setIsOwnersOpen] = useState(false)
 
   async function loadClients () {
     setIsLoading(true)
@@ -76,6 +80,19 @@ export function ClientsPage () {
                   <span>Создан: {fmtDt(c.createdAt)}</span>
                   <span>АП: {c.baseApProjectId ? 'загружена' : '—'}</span>
                 </div>
+                <div className={styles.cardActions}>
+                  <button
+                    type="button"
+                    className={styles.cardButton}
+                    onClick={() => {
+                      setOwnersClientId(c.id)
+                      setOwnersClientName(c.name)
+                      setIsOwnersOpen(true)
+                    }}
+                  >
+                    Овнеры
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -88,6 +105,17 @@ export function ClientsPage () {
         onCreated={() => {
           setIsWizardOpen(false)
           loadClients()
+        }}
+      />
+
+      <ClientOwnersModal
+        open={isOwnersOpen}
+        clientId={ownersClientId}
+        clientName={ownersClientName}
+        onClose={() => {
+          setIsOwnersOpen(false)
+          setOwnersClientId(null)
+          setOwnersClientName(null)
         }}
       />
     </div>
