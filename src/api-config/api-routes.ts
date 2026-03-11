@@ -25,6 +25,7 @@ export const apiRoutes = {
     users: `${ROUTES.team}/users`,
     userProjectAccess: (userId: string) => `${ROUTES.team}/users/${userId}/project-access`,
     userPointAccess: (userId: string) => `${ROUTES.team}/users/${userId}/point-access`,
+    userResetPassword: (userId: string) => `${ROUTES.team}/users/${userId}/password/reset`,
     bulkProjectAccess: `${ROUTES.team}/users/project-access/bulk`,
   },
   clients: {

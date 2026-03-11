@@ -12,10 +12,15 @@ class TeamUserItem(BaseModel):
   firstName: str
   lastName: str
   email: EmailStr
+  phone: str | None = None
   company: CompanyPublic
   role: UserRole
+  profileCompany: str | None = None
+  uiLanguage: str
+  isActive: bool
   note: str | None
   createdAt: datetime
+  lastLoginAt: datetime | None = None
 
 
 class TeamUsersResponse(BaseModel):
@@ -26,8 +31,13 @@ class TeamCreateUserRequest(BaseModel):
   firstName: str = Field(min_length=1, max_length=120)
   lastName: str = Field(min_length=1, max_length=120)
   email: EmailStr
+  phone: str | None = Field(default=None, max_length=32)
   role: UserRole
+  profileCompany: str | None = Field(default=None, max_length=250)
+  uiLanguage: str = Field(default='ru', max_length=12)
+  isActive: bool = True
   note: str | None = Field(default=None, max_length=2000)
+  password: str | None = Field(default=None, min_length=6, max_length=200)
 
 
 class TeamCreateUserResponse(BaseModel):
@@ -43,8 +53,33 @@ class TeamUserDetailsResponse(BaseModel):
   )
 
 
+class TeamUpdateUserRequest(BaseModel):
+  firstName: str | None = Field(default=None, min_length=1, max_length=120)
+  lastName: str | None = Field(default=None, min_length=1, max_length=120)
+  email: EmailStr | None = None
+  phone: str | None = Field(default=None, max_length=32)
+  role: UserRole | None = None
+  profileCompany: str | None = Field(default=None, max_length=250)
+  uiLanguage: str | None = Field(default=None, max_length=12)
+  isActive: bool | None = None
+  note: str | None = Field(default=None, max_length=2000)
+  password: str | None = Field(default=None, min_length=6, max_length=200)
+
+
 class TeamResetPasswordResponse(BaseModel):
   password: str = Field(
     description='Новый временный пароль (только для администраторов, прототип). В проде хранить/отдавать пароль нельзя.',
   )
+
+
+class TeamUsersImportError(BaseModel):
+  row: int
+  message: str
+
+
+class TeamUsersImportResponse(BaseModel):
+  created: int
+  updated: int
+  skipped: int
+  errors: list[TeamUsersImportError] | None = None
 

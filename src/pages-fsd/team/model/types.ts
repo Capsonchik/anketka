@@ -8,8 +8,12 @@ export type TeamUser = {
   phone?: string | null
   company: TeamUserCompany
   role: UserRole
+  profileCompany?: string | null
+  uiLanguage: string
+  isActive: boolean
   note: string | null
   createdAt: string
+  lastLoginAt?: string | null
 }
 
 export type TeamUserCompany = {
@@ -43,6 +47,7 @@ export type TeamUsersImportError = {
 
 export type TeamUsersImportResponse = {
   created: number
+  updated: number
   skipped: number
   errors?: TeamUsersImportError[]
 }

@@ -10,7 +10,11 @@ export type CreateUserFormState = {
   email: string
   phone: string
   role: UserRole
+  profileCompany: string
+  uiLanguage: string
+  isActive: boolean
   note: string
+  password: string
 }
 
 export function TeamCreateUserModal ({
@@ -67,6 +71,10 @@ export function TeamCreateUserModal ({
             />
           </Field>
 
+          <Field label="Компания (профиль)">
+            <Input value={form.profileCompany} onChange={(v) => onChange({ profileCompany: String(v ?? '') })} placeholder="ООО Ромашка" />
+          </Field>
+
           <Field label="Роль *">
             <SelectPicker
               value={form.role}
@@ -78,13 +86,50 @@ export function TeamCreateUserModal ({
             />
           </Field>
 
+          <Field label="Язык интерфейса">
+            <SelectPicker
+              value={form.uiLanguage}
+              onChange={(v) => onChange({ uiLanguage: String(v ?? 'ru') })}
+              cleanable={false}
+              searchable={false}
+              block
+              data={[
+                { label: 'ru', value: 'ru' },
+                { label: 'en', value: 'en' },
+              ]}
+            />
+          </Field>
+
+          <Field label="Активен">
+            <SelectPicker
+              value={form.isActive ? 'true' : 'false'}
+              onChange={(v) => onChange({ isActive: String(v ?? 'true') === 'true' })}
+              cleanable={false}
+              searchable={false}
+              block
+              data={[
+                { label: 'Да', value: 'true' },
+                { label: 'Нет', value: 'false' },
+              ]}
+            />
+          </Field>
+
           <Field label="Заметка">
             <Input as="textarea" rows={3} value={form.note} onChange={(v) => onChange({ note: String(v ?? '') })} />
           </Field>
+
+          <Field label="Пароль (опционально)">
+            <Input
+              type="password"
+              value={form.password}
+              onChange={(v) => onChange({ password: String(v ?? '') })}
+              placeholder="Оставьте пустым для генерации"
+            />
+          </Field>
         </div>
 
-        {submitError ? <div style={{ marginTop: 10, color: 'rgba(218, 60, 60, 0.92)', fontWeight: 750, fontSize: 12 }}>{submitError}</div> : null}
-        {submitSuccess ? <div style={{ marginTop: 10, color: 'rgba(20, 140, 90, 0.92)', fontWeight: 750, fontSize: 12 }}>{submitSuccess}</div> : null}
+        {submitError ? <div style={{ marginTop: 10, color: 'rgba(218, 60, 60, 0.92)', fontWeight: 600, fontSize: 12 }}>{submitError}</div> : null}
+        {submitSuccess ? <div style={{ marginTop: 10, color: 'rgba(20, 140, 90, 0.92)', fontWeight: 600, fontSize: 12 }}>{submitSuccess}</div> : null}
       </Modal.Body>
       <Modal.Footer>
         <Button appearance="subtle" onClick={onClose} disabled={isSubmitting}>
@@ -104,7 +149,7 @@ export function TeamCreateUserModal ({
 function Field ({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'grid', gap: 6 }}>
-      <div style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600 }}>{label}</div>
       {children}
     </div>
   )

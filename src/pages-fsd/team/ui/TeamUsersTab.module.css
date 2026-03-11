@@ -1,7 +1,7 @@
 .filters {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: 1fr 180px auto;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
   gap: 10px;
   align-items: center;
 }

@@ -75,7 +75,7 @@ export function TeamUserCard ({
               onAccess()
             }}
           >
-            <Image src="/icons/pin.svg" alt="" width={16} height={16} aria-hidden="true" />
+            <Image src="/icons/shield.svg" alt="" width={16} height={16} aria-hidden="true" />
           </button>
         ) : null}
         {canLocations ? (
@@ -95,7 +95,7 @@ export function TeamUserCard ({
           <button
             type="button"
             className={styles.iconButton}
-            aria-label="Удалить"
+            aria-label={user.isActive ? 'Деактивировать' : 'Активировать'}
             onClick={(e) => {
               e.stopPropagation()
               onDelete()

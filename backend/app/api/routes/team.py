@@ -1,10 +1,13 @@
 import secrets
+from datetime import datetime, timezone
+from io import BytesIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from openpyxl import load_workbook
 
 from app.api.deps import get_current_user
 from app.core.security import hash_password
@@ -28,8 +31,12 @@ from app.schemas.company import CompanyPublic
 from app.schemas.team import (
   TeamCreateUserRequest,
   TeamCreateUserResponse,
+  TeamResetPasswordResponse,
+  TeamUpdateUserRequest,
   TeamUserDetailsResponse,
   TeamUserItem,
+  TeamUsersImportError,
+  TeamUsersImportResponse,
   TeamUsersResponse,
 )
 
@@ -49,11 +56,41 @@ def to_team_user_item (user: User) -> TeamUserItem:
     firstName=user.first_name,
     lastName=user.last_name,
     email=user.email,
+    phone=user.phone,
     company=company_public,
     role=user.role,
+    profileCompany=user.profile_company,
+    uiLanguage=user.ui_language,
+    isActive=bool(user.is_active),
     note=user.note,
     createdAt=user.created_at,
+    lastLoginAt=user.last_login_at,
   )
+
+
+ROLE_LEVEL: dict[UserRole, int] = {
+  UserRole.admin: 1,
+  UserRole.manager: 2,
+  UserRole.controller: 3,
+  UserRole.coordinator: 4,
+  UserRole.client: 5,
+}
+
+
+def _now_utc () -> datetime:
+  return datetime.now(timezone.utc)
+
+
+def _ensure_can_manage_user (actor: User, *, target_role: UserRole) -> None:
+  if (actor.platform_role or 'user') == 'owner':
+    return
+  if actor.role == UserRole.admin:
+    return
+  if actor.role == UserRole.manager:
+    if target_role == UserRole.admin:
+      raise HTTPException(status_code=403, detail='Менеджер не может управлять администратором')
+    return
+  raise HTTPException(status_code=403, detail='Недостаточно прав')
 
 
 def _ensure_admin (user: User) -> None:
@@ -137,10 +174,16 @@ async def _ensure_target_user_in_company (db: AsyncSession, *, company_id: UUID,
 )
 async def list_users (
   q: str | None = Query(default=None, description='Поиск по имени, фамилии или почте'),
+  user_id: UUID | None = Query(default=None, description='Фильтр по ID пользователя'),
+  is_active: bool | None = Query(default=None, description='Фильтр по активности'),
   role: UserRole | None = Query(default=None, description='Фильтр по роли'),
+  email: str | None = Query(default=None, description='Фильтр по email'),
+  phone: str | None = Query(default=None, description='Фильтр по телефону'),
+  profile_company: str | None = Query(default=None, description='Фильтр по компании (профиль)'),
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> TeamUsersResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
   company_id = getattr(current_user, 'active_company_id', current_user.company_id)
 
   stmt = (
@@ -149,8 +192,18 @@ async def list_users (
     .where(User.company_id == company_id)
     .order_by(User.created_at.desc())
   )
+  if user_id is not None:
+    stmt = stmt.where(User.id == user_id)
+  if is_active is not None:
+    stmt = stmt.where(User.is_active == is_active)
   if role is not None:
     stmt = stmt.where(User.role == role)
+  if email:
+    stmt = stmt.where(User.email.ilike(f'%{email.strip()}%'))
+  if phone:
+    stmt = stmt.where(User.phone.ilike(f'%{phone.strip()}%'))
+  if profile_company:
+    stmt = stmt.where(User.profile_company.ilike(f'%{profile_company.strip()}%'))
   if q:
     like = f'%{q.strip()}%'
     stmt = stmt.where(
@@ -178,22 +231,28 @@ async def create_user (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> TeamCreateUserResponse:
-  _ensure_admin(current_user)
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_can_manage_user(current_user, target_role=payload.role)
 
   existing = await db.execute(select(User).where(User.email == str(payload.email)))
   if existing.scalar_one_or_none() is not None:
     raise HTTPException(status_code=400, detail='Пользователь с такой почтой уже существует')
 
-  temporary_password = secrets.token_urlsafe(9)
-  temporary_password = temporary_password[:20]
+  temporary_password = (payload.password or '').strip()
+  if not temporary_password:
+    temporary_password = secrets.token_urlsafe(9)
+    temporary_password = temporary_password[:20]
 
   user = User(
     first_name=payload.firstName,
     last_name=payload.lastName,
     email=str(payload.email),
-    phone=None,
+    phone=(payload.phone or None),
     role=payload.role,
     note=payload.note,
+    profile_company=payload.profileCompany,
+    ui_language=(payload.uiLanguage or 'ru'),
+    is_active=bool(payload.isActive),
     company_id=getattr(current_user, 'active_company_id', current_user.company_id),
     temporary_password=temporary_password,
     password_hash=hash_password(temporary_password),
@@ -217,6 +276,7 @@ async def get_user (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> TeamUserDetailsResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
   company_id = getattr(current_user, 'active_company_id', current_user.company_id)
   res = await db.execute(
     select(User)
@@ -229,6 +289,108 @@ async def get_user (
 
   password = user.temporary_password if current_user.role == UserRole.admin else None
   return TeamUserDetailsResponse(user=to_team_user_item(user), password=password)
+
+
+@router.patch(
+  '/users/{user_id}',
+  response_model=TeamUserDetailsResponse,
+  summary='Обновить участника',
+)
+async def update_user (
+  payload: TeamUpdateUserRequest,
+  user_id: UUID = Path(..., description='ID пользователя'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> TeamUserDetailsResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  company_id = _company_id(current_user)
+  res = await db.execute(select(User).options(selectinload(User.company)).where(User.id == user_id, User.company_id == company_id))
+  user = res.scalar_one_or_none()
+  if user is None:
+    raise HTTPException(status_code=404, detail='Пользователь не найден')
+
+  _ensure_can_manage_user(current_user, target_role=user.role)
+
+  if payload.role is not None:
+    _ensure_can_manage_user(current_user, target_role=payload.role)
+
+  if user.id == current_user.id and payload.isActive is False:
+    raise HTTPException(status_code=400, detail='Нельзя деактивировать самого себя')
+
+  if payload.email is not None:
+    next_email = str(payload.email)
+    if next_email != user.email:
+      exists = await db.execute(select(User.id).where(User.email == next_email, User.id != user.id))
+      if exists.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=400, detail='Пользователь с такой почтой уже существует')
+      user.email = next_email
+
+  if payload.phone is not None:
+    next_phone = payload.phone or None
+    if next_phone != user.phone:
+      if next_phone:
+        exists = await db.execute(select(User.id).where(User.phone == next_phone, User.id != user.id))
+        if exists.scalar_one_or_none() is not None:
+          raise HTTPException(status_code=400, detail='Пользователь с таким телефоном уже существует')
+      user.phone = next_phone
+
+  if payload.firstName is not None:
+    user.first_name = payload.firstName
+  if payload.lastName is not None:
+    user.last_name = payload.lastName
+  if payload.role is not None:
+    user.role = payload.role
+  if payload.note is not None:
+    user.note = payload.note
+  if payload.profileCompany is not None:
+    user.profile_company = payload.profileCompany
+  if payload.uiLanguage is not None:
+    user.ui_language = payload.uiLanguage
+  if payload.isActive is not None:
+    user.is_active = payload.isActive
+
+  password_out = None
+  if payload.password is not None:
+    pw = (payload.password or '').strip()
+    if not pw:
+      raise HTTPException(status_code=400, detail='Пароль не должен быть пустым')
+    user.temporary_password = pw
+    user.password_hash = hash_password(pw)
+    password_out = pw
+
+  await db.commit()
+  out = await db.execute(select(User).options(selectinload(User.company)).where(User.id == user.id))
+  user = out.scalar_one()
+
+  if password_out is None and current_user.role == UserRole.admin:
+    password_out = user.temporary_password
+  return TeamUserDetailsResponse(user=to_team_user_item(user), password=password_out)
+
+
+@router.post(
+  '/users/{user_id}/password/reset',
+  response_model=TeamResetPasswordResponse,
+  summary='Сбросить пароль участнику (временный)',
+)
+async def reset_user_password (
+  user_id: UUID = Path(..., description='ID пользователя'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> TeamResetPasswordResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  company_id = _company_id(current_user)
+  res = await db.execute(select(User).where(User.id == user_id, User.company_id == company_id))
+  user = res.scalar_one_or_none()
+  if user is None:
+    raise HTTPException(status_code=404, detail='Пользователь не найден')
+
+  _ensure_can_manage_user(current_user, target_role=user.role)
+
+  temporary_password = secrets.token_urlsafe(9)[:20]
+  user.temporary_password = temporary_password
+  user.password_hash = hash_password(temporary_password)
+  await db.commit()
+  return TeamResetPasswordResponse(password=temporary_password)
 
 
 @router.get(
@@ -451,4 +613,197 @@ async def replace_user_point_access (
 
   await db.commit()
   return await get_user_point_access(user_id=user_id, db=db, current_user=current_user)
+
+
+def _normalize_header (value: str) -> str:
+  return ''.join(ch for ch in str(value or '').strip().lower() if ch.isalnum() or ch in ('_', ' ')).replace('  ', ' ').strip()
+
+
+def _split_fio (fio: str) -> tuple[str, str]:
+  parts = [p for p in str(fio or '').strip().split() if p]
+  if len(parts) >= 2:
+    return parts[1], parts[0]
+  if len(parts) == 1:
+    return parts[0], '—'
+  return '—', '—'
+
+
+@router.post(
+  '/users/import',
+  response_model=TeamUsersImportResponse,
+  summary='Импорт участников из Excel (.xlsx)',
+)
+async def import_users_xlsx (
+  file: UploadFile = File(...),
+  update_existing: bool = Query(default=False, description='Обновлять существующих пользователей (по email)'),
+  generate_password_if_empty: bool = Query(default=True, description='Генерировать пароль, если Password пустой'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> TeamUsersImportResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+
+  if not file.filename or not file.filename.lower().endswith('.xlsx'):
+    raise HTTPException(status_code=400, detail='Нужен файл .xlsx')
+
+  raw = await file.read()
+  if not raw:
+    raise HTTPException(status_code=400, detail='Файл пустой')
+
+  try:
+    wb = load_workbook(BytesIO(raw), read_only=True, data_only=True)
+    ws = wb.active
+  except Exception:
+    raise HTTPException(status_code=400, detail='Не удалось прочитать .xlsx')
+
+  rows = list(ws.iter_rows(values_only=True))
+  if not rows or not rows[0]:
+    raise HTTPException(status_code=400, detail='В файле нет заголовка')
+
+  header = [_normalize_header(x) for x in rows[0]]
+  idx: dict[str, int] = {h: i for i, h in enumerate(header) if h}
+
+  def col (*names: str) -> int | None:
+    for n in names:
+      k = _normalize_header(n)
+      if k in idx:
+        return idx[k]
+    return None
+
+  i_email = col('email', 'электронная почта', 'почта')
+  if i_email is None:
+    raise HTTPException(status_code=400, detail='Не найдена колонка Email')
+
+  i_password = col('password', 'пароль')
+  i_fio = col('fio', 'фио')
+  i_company = col('company', 'компания')
+  i_phone = col('phone', 'телефон')
+  i_role = col('role', 'роль')
+  i_lang = col('language', 'язык', 'язык интерфейса')
+  i_note = col('note', 'заметка')
+  i_active = col('active', 'активен')
+
+  errors: list[TeamUsersImportError] = []
+  items: list[dict] = []
+
+  for r_idx, row in enumerate(rows[1:], start=2):
+    email = (str(row[i_email] or '').strip() if i_email is not None else '').lower()
+    if not email:
+      errors.append(TeamUsersImportError(row=r_idx, message='Email обязателен'))
+      continue
+
+    fio = str(row[i_fio] or '').strip() if i_fio is not None else ''
+    first_name = ''
+    last_name = ''
+    if fio:
+      first_name, last_name = _split_fio(fio)
+
+    profile_company = str(row[i_company] or '').strip() if i_company is not None else ''
+    phone = str(row[i_phone] or '').strip() if i_phone is not None else ''
+    role_raw = str(row[i_role] or '').strip().lower() if i_role is not None else ''
+    lang = str(row[i_lang] or '').strip().lower() if i_lang is not None else ''
+    note = str(row[i_note] or '').strip() if i_note is not None else ''
+    active_raw = str(row[i_active] or '').strip().lower() if i_active is not None else ''
+
+    password = str(row[i_password] or '').strip() if i_password is not None else ''
+    if not password and generate_password_if_empty:
+      password = secrets.token_urlsafe(9)[:20]
+
+    is_active = True
+    if active_raw in ('0', 'false', 'no', 'off', 'нет'):
+      is_active = False
+    if active_raw in ('1', 'true', 'yes', 'on', 'да'):
+      is_active = True
+
+    if role_raw and role_raw not in {r.value for r in UserRole}:
+      errors.append(TeamUsersImportError(row=r_idx, message='Некорректная роль'))
+      continue
+
+    role = UserRole(role_raw) if role_raw else UserRole.manager
+
+    if not first_name or first_name == '—':
+      first_name = '—'
+    if not last_name or last_name == '—':
+      last_name = '—'
+
+    if not lang:
+      lang = 'ru'
+
+    items.append(
+      {
+        'email': email,
+        'password': password or None,
+        'first_name': first_name,
+        'last_name': last_name,
+        'phone': phone or None,
+        'role': role,
+        'profile_company': profile_company or None,
+        'ui_language': lang,
+        'note': note or None,
+        'is_active': is_active,
+        'row': r_idx,
+      },
+    )
+
+  if errors:
+    return TeamUsersImportResponse(created=0, updated=0, skipped=0, errors=errors)
+
+  company_id = _company_id(current_user)
+
+  created = 0
+  updated = 0
+  skipped = 0
+
+  for item in items:
+    res = await db.execute(select(User).where(User.company_id == company_id, User.email == item['email']))
+    existing = res.scalar_one_or_none()
+
+    if existing is None:
+      _ensure_can_manage_user(current_user, target_role=item['role'])
+      pw = item['password'] or secrets.token_urlsafe(9)[:20]
+      user = User(
+        first_name=item['first_name'],
+        last_name=item['last_name'],
+        email=item['email'],
+        phone=item['phone'],
+        role=item['role'],
+        profile_company=item['profile_company'],
+        ui_language=item['ui_language'],
+        is_active=bool(item['is_active']),
+        note=item['note'],
+        company_id=company_id,
+        temporary_password=pw,
+        password_hash=hash_password(pw),
+      )
+      db.add(user)
+      created += 1
+      continue
+
+    if not update_existing:
+      skipped += 1
+      continue
+
+    _ensure_can_manage_user(current_user, target_role=existing.role)
+    _ensure_can_manage_user(current_user, target_role=item['role'])
+
+    existing.first_name = item['first_name']
+    existing.last_name = item['last_name']
+    existing.phone = item['phone']
+    existing.role = item['role']
+    existing.profile_company = item['profile_company']
+    existing.ui_language = item['ui_language']
+    existing.is_active = bool(item['is_active'])
+    existing.note = item['note']
+
+    if item['password']:
+      existing.temporary_password = item['password']
+      existing.password_hash = hash_password(item['password'])
+    updated += 1
+
+  try:
+    await db.commit()
+  except Exception as err:
+    await db.rollback()
+    return TeamUsersImportResponse(created=0, updated=0, skipped=0, errors=[TeamUsersImportError(row=0, message=str(err))])
+
+  return TeamUsersImportResponse(created=created, updated=updated, skipped=skipped, errors=None)
 

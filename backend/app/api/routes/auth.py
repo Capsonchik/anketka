@@ -133,7 +133,10 @@ async def login (payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> A
   user = res.scalar_one_or_none()
   if user is None or not verify_password(payload.password, user.password_hash):
     raise HTTPException(status_code=400, detail='Invalid credentials')
+  if user.is_active is False:
+    raise HTTPException(status_code=403, detail='Пользователь деактивирован')
 
+  user.last_login_at = _now_utc()
   tokens, refresh_token, jti = _tokens_for_user(user)
   await _persist_refresh_token(db=db, user_id=user.id, refresh_token=refresh_token, jti=jti)
   await db.commit()
@@ -175,6 +178,8 @@ async def refresh (payload: RefreshRequest, db: AsyncSession = Depends(get_db)) 
   user = user_res.scalar_one_or_none()
   if user is None:
     raise HTTPException(status_code=401, detail='User not found')
+  if user.is_active is False:
+    raise HTTPException(status_code=403, detail='Пользователь деактивирован')
 
   row.revoked_at = now
 

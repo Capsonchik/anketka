@@ -5,6 +5,13 @@ import type { TeamUser } from '../model/types'
 
 import styles from './TeamUsersTable.module.css'
 
+function fmtDt (value: string | null | undefined) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return new Intl.DateTimeFormat('ru-RU', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d)
+}
+
 export function TeamUsersTable ({
   users,
   onOpen,
@@ -33,16 +40,26 @@ export function TeamUsersTable ({
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>Участник</th>
-            <th>Телефон</th>
-            <th>Почта</th>
+            <th>ID</th>
             <th>Роль</th>
+            <th>Почта</th>
+            <th>ФИО</th>
+            <th>Телефон</th>
+            <th>Компания</th>
+            <th>Язык</th>
+            <th>Заметка</th>
+            <th>Активен</th>
+            <th>Создан</th>
+            <th>Последний вход</th>
             <th className={styles.actionsCol} />
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
             <tr key={u.id} className={styles.row} onClick={() => onOpen(u.id)}>
+              <td className={styles.email}>{u.id}</td>
+              <td className={styles.role}>{userRoleLabel(u.role)}</td>
+              <td className={styles.email}>{u.email}</td>
               <td className={styles.nameCell}>
                 <div className={styles.name}>
                   <span className={styles.firstName}>{u.firstName}</span>
@@ -50,8 +67,12 @@ export function TeamUsersTable ({
                 </div>
               </td>
               <td className={styles.phone}>{u.phone || '—'}</td>
-              <td className={styles.email}>{u.email}</td>
-              <td className={styles.role}>{userRoleLabel(u.role)}</td>
+              <td className={styles.email}>{u.profileCompany || '—'}</td>
+              <td className={styles.role}>{u.uiLanguage || 'ru'}</td>
+              <td className={styles.email}>{u.note || '—'}</td>
+              <td className={styles.role}>{u.isActive ? 'Да' : 'Нет'}</td>
+              <td className={styles.role}>{fmtDt(u.createdAt)}</td>
+              <td className={styles.role}>{fmtDt(u.lastLoginAt)}</td>
               <td className={styles.actions}>
                 {canEdit(u) ? (
                   <IconButton
@@ -85,7 +106,7 @@ export function TeamUsersTable ({
                 ) : null}
                 {canDelete ? (
                   <IconButton
-                    label="Удалить"
+                    label={u.isActive ? 'Деактивировать' : 'Активировать'}
                     iconSrc="/icons/trash.svg"
                     onClick={(e) => {
                       e.stopPropagation()

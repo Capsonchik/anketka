@@ -53,6 +53,8 @@ async def get_current_user (
   user = res.scalar_one_or_none()
   if user is None:
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='User not found')
+  if user.is_active is False:
+    raise HTTPException(status_code=403, detail='Пользователь деактивирован')
 
   active_company_id = user.company_id
   if (user.platform_role or 'user') == 'owner' and x_company_id and x_company_id.strip():

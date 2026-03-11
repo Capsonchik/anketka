@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Input, Modal, SelectPicker } from 'rsuite'
+import { Input, Modal, Nav, SelectPicker } from 'rsuite'
 import Image from 'next/image'
 
 import axiosMainRequest from '@/api-config/api-config'
@@ -11,6 +11,13 @@ import { userRoleOptions, type UserRole } from '@/entities/user'
 import type { TeamUserDetailsResponse, UserPointAccessResponse, UserProjectAccessResponse } from '../model/types'
 
 import styles from './TeamUserDetailsModal.module.css'
+
+function fmtDt (value: string | null | undefined) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return new Intl.DateTimeFormat('ru-RU', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d)
+}
 
 export function TeamUserDetailsModal ({
   open,
@@ -34,7 +41,21 @@ export function TeamUserDetailsModal ({
   canEdit: boolean
   mode: 'view' | 'edit'
   onModeChange: (mode: 'view' | 'edit') => void
-  onSave: (userId: string, patch: { firstName: string; lastName: string; email: string; phone: string | null; role: UserRole; note: string | null }) => void | Promise<void>
+  onSave: (
+    userId: string,
+    patch: {
+      firstName: string
+      lastName: string
+      email: string
+      phone: string | null
+      role: UserRole
+      profileCompany: string | null
+      uiLanguage: string
+      isActive: boolean
+      note: string | null
+      password: string | null
+    },
+  ) => void | Promise<void>
   onDelete: (userId: string) => void | Promise<void>
 }) {
   const user = details?.user
@@ -51,19 +72,31 @@ export function TeamUserDetailsModal ({
       email: user?.email ?? '',
       phone: user?.phone ?? '',
       role: (user?.role ?? 'manager') as UserRole,
+      profileCompany: user?.profileCompany ?? '',
+      uiLanguage: user?.uiLanguage ?? 'ru',
+      isActive: Boolean(user?.isActive ?? true),
       note: user?.note ?? '',
+      password: '',
     }
   }, [user])
 
   const [form, setForm] = useState(initialForm)
+  const [tab, setTab] = useState<'profile' | 'role' | 'distribution' | 'reports'>('profile')
   const [access, setAccess] = useState<UserProjectAccessResponse | null>(null)
   const [accessError, setAccessError] = useState<string | null>(null)
   const [pointsAccess, setPointsAccess] = useState<UserPointAccessResponse | null>(null)
   const [pointsAccessError, setPointsAccessError] = useState<string | null>(null)
+  const [resetPassword, setResetPassword] = useState<string | null>(null)
 
   useEffect(() => {
     setForm(initialForm)
   }, [initialForm])
+
+  useEffect(() => {
+    if (!open) return
+    setResetPassword(null)
+    setTab('profile')
+  }, [open, user?.id])
 
   useEffect(() => {
     const uid = user?.id
@@ -111,6 +144,13 @@ export function TeamUserDetailsModal ({
 
         {canRender ? (
           <div className={styles.content}>
+            <Nav appearance="tabs" activeKey={tab} onSelect={(k) => setTab((k as typeof tab) ?? 'profile')}>
+              <Nav.Item eventKey="profile">Профиль</Nav.Item>
+              <Nav.Item eventKey="role">Роль</Nav.Item>
+              <Nav.Item eventKey="distribution">Распределение</Nav.Item>
+              <Nav.Item eventKey="reports">Отчёты</Nav.Item>
+            </Nav>
+
             <div className={styles.left}>
               <div className={styles.avatar} aria-hidden="true">
                 {initials}
@@ -119,15 +159,26 @@ export function TeamUserDetailsModal ({
             </div>
 
             <div className={styles.right}>
-              {actualMode === 'view' ? (
+              {tab !== 'profile' ? (
+                <div className={styles.grid}>
+                  {tab === 'role' ? <Field label="Роль и группы безопасности" value="MVP: в разработке" /> : null}
+                  {tab === 'distribution' ? <Field label="Распределение (клиенты/локации)" value="MVP: в разработке" /> : null}
+                  {tab === 'reports' ? <Field label="Отчёты" value="MVP: в разработке" /> : null}
+                </div>
+              ) : actualMode === 'view' ? (
                 <div className={styles.grid}>
                   <div className={styles.fullName}>
                     {user.firstName} {user.lastName}
                   </div>
                   <Field label="Компания" value={companyName} />
+                  <Field label="Компания (профиль)" value={user.profileCompany || '—'} />
                   <Field label="Почта" value={user.email} isMonospace />
                   <Field label="Телефон" value={user.phone || '—'} isMonospace />
+                  <Field label="Язык интерфейса" value={user.uiLanguage || 'ru'} isMonospace />
+                  <Field label="Активен" value={user.isActive ? 'Да' : 'Нет'} />
                   <Field label="Заметка" value={user.note || '—'} />
+                  <Field label="Создан" value={fmtDt(user.createdAt)} isMonospace />
+                  <Field label="Последний вход" value={fmtDt(user.lastLoginAt)} isMonospace />
                   {accessError ? <Field label="Доступы" value="ошибка" /> : null}
                   {!accessError ? (
                     <Field
@@ -149,6 +200,7 @@ export function TeamUserDetailsModal ({
                     />
                   ) : null}
                   {password ? <Field label="Временный пароль" value={password} isMonospace /> : null}
+                  {resetPassword ? <Field label="Новый пароль" value={resetPassword} isMonospace /> : null}
                 </div>
               ) : (
                 <div className={styles.grid}>
@@ -174,6 +226,9 @@ export function TeamUserDetailsModal ({
                       inputMode="tel"
                     />
                   </FieldEdit>
+                  <FieldEdit label="Компания (профиль)">
+                    <Input value={form.profileCompany} onChange={(v) => setForm((p) => ({ ...p, profileCompany: String(v ?? '') }))} />
+                  </FieldEdit>
                   <FieldEdit label="Роль *">
                     <SelectPicker
                       value={form.role}
@@ -184,12 +239,46 @@ export function TeamUserDetailsModal ({
                       data={userRoleOptions}
                     />
                   </FieldEdit>
+                  <FieldEdit label="Язык интерфейса">
+                    <SelectPicker
+                      value={form.uiLanguage}
+                      onChange={(v) => setForm((p) => ({ ...p, uiLanguage: String(v ?? 'ru') }))}
+                      cleanable={false}
+                      searchable={false}
+                      block
+                      data={[
+                        { label: 'ru', value: 'ru' },
+                        { label: 'en', value: 'en' },
+                      ]}
+                    />
+                  </FieldEdit>
+                  <FieldEdit label="Активен">
+                    <SelectPicker
+                      value={form.isActive ? 'true' : 'false'}
+                      onChange={(v) => setForm((p) => ({ ...p, isActive: String(v ?? 'true') === 'true' }))}
+                      cleanable={false}
+                      searchable={false}
+                      block
+                      data={[
+                        { label: 'Да', value: 'true' },
+                        { label: 'Нет', value: 'false' },
+                      ]}
+                    />
+                  </FieldEdit>
                   <FieldEdit label="Заметка">
                     <Input
                       as="textarea"
                       rows={3}
                       value={form.note}
                       onChange={(v) => setForm((p) => ({ ...p, note: String(v ?? '') }))}
+                    />
+                  </FieldEdit>
+                  <FieldEdit label="Пароль (опционально)">
+                    <Input
+                      type="password"
+                      value={form.password}
+                      onChange={(v) => setForm((p) => ({ ...p, password: String(v ?? '') }))}
+                      placeholder="Оставьте пустым, чтобы не менять"
                     />
                   </FieldEdit>
                 </div>
@@ -203,16 +292,31 @@ export function TeamUserDetailsModal ({
           {actualMode === 'view' ? (
             <>
               <IconButton label="Закрыть" onClick={onClose} disabled={isLoading}>
-                <XIcon />
+                <Image src="/icons/close.svg" alt="" width={16} height={16} aria-hidden="true" />
               </IconButton>
               {user && canEdit ? (
                 <IconButton label="Изменить" onClick={() => onModeChange('edit')} disabled={isLoading}>
                   <Image src="/icons/edit.svg" alt="" width={16} height={16} aria-hidden="true" />
                 </IconButton>
               ) : null}
-              {user && isAdmin ? (
+              {user && canEdit ? (
                 <IconButton
-                  label="Удалить"
+                  label="Сбросить пароль"
+                  onClick={() => {
+                    const uid = user.id
+                    axiosMainRequest
+                      .post<{ password: string }>(apiRoutes.team.userResetPassword(uid))
+                      .then((res) => setResetPassword(res.data.password || null))
+                      .catch(() => setResetPassword(null))
+                  }}
+                  disabled={isLoading}
+                >
+                  <Image src="/icons/key.svg" alt="" width={16} height={16} aria-hidden="true" />
+                </IconButton>
+              ) : null}
+              {user && canEdit ? (
+                <IconButton
+                  label={user.isActive ? 'Деактивировать' : 'Активировать'}
                   onClick={() => onDelete(user.id)}
                   disabled={isLoading}
                   variant="danger"
@@ -231,7 +335,7 @@ export function TeamUserDetailsModal ({
                 }}
                 disabled={isLoading}
               >
-                <XIcon />
+                <Image src="/icons/close.svg" alt="" width={16} height={16} aria-hidden="true" />
               </IconButton>
               {user ? (
                 <IconButton
@@ -247,7 +351,11 @@ export function TeamUserDetailsModal ({
                       email: em,
                       phone: form.phone.trim() || null,
                       role: form.role,
+                    profileCompany: form.profileCompany.trim() || null,
+                    uiLanguage: form.uiLanguage || 'ru',
+                    isActive: Boolean(form.isActive),
                       note: form.note.trim() || null,
+                    password: form.password.trim() ? form.password.trim() : null,
                     })
                   }}
                   disabled={isLoading}
@@ -326,33 +434,21 @@ function IconButton ({
   )
 }
 
-function XIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M18 6 6 18M6 6l12 12"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
-function CheckIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M20 6 9 17l-5-5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
+
+// function CheckIcon () {
+//   return (
+//     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+//       <path
+//         d="M20 6 9 17l-5-5"
+//         stroke="currentColor"
+//         strokeWidth="2"
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//     </svg>
+//   )
+// }
 
 function getInitials (firstName: string, lastName: string) {
   const f = String(firstName || '').trim()

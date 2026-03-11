@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Modal } from 'rsuite'
+import { Checkbox, Modal } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
@@ -27,6 +27,8 @@ export function TeamUsersImportModal ({
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<TeamUsersImportResponse | null>(null)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
+  const [updateExisting, setUpdateExisting] = useState(false)
+  const [generatePasswordIfEmpty, setGeneratePasswordIfEmpty] = useState(true)
 
   async function importXlsx (file: File) {
     if (disabled) return
@@ -36,9 +38,13 @@ export function TeamUsersImportModal ({
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await axiosMainRequest.post<TeamUsersImportResponse>(`${apiRoutes.team.users}/import`, fd, {
+      const res = await axiosMainRequest.post<TeamUsersImportResponse>(
+        `${apiRoutes.team.users}/import?update_existing=${String(updateExisting)}&generate_password_if_empty=${String(generatePasswordIfEmpty)}`,
+        fd,
+        {
         headers: { 'Content-Type': 'multipart/form-data' },
-      })
+        },
+      )
       setImportResult(res.data)
       await onImported()
     } catch (err: unknown) {
@@ -58,43 +64,60 @@ export function TeamUsersImportModal ({
         <div className={styles.note}>
           Загрузите <span className={styles.mono}>.xlsx</span> с первой строкой-заголовком и колонками:
           <div className={styles.mono} style={{ marginTop: 6 }}>
-            Фамилия, Имя, Электронная почта, Телефон, Роль, Заметка
+            Email, Password, ФИО, Компания, Телефон, Роль, Язык интерфейса, Заметка, Активен
           </div>
           <div className={styles.hint} style={{ marginTop: 6 }}>
             Роль: <span className={styles.mono}>admin</span>, <span className={styles.mono}>manager</span>,{' '}
-            <span className={styles.mono}>controller</span>, <span className={styles.mono}>coordinator</span>,{' '}
-            <span className={styles.mono}>auditor</span>
+            <span className={styles.mono}>controller</span>, <span className={styles.mono}>coordinator</span>, <span className={styles.mono}>client</span>
           </div>
+        </div>
+
+        <div className={styles.fileLine} style={{ marginTop: 10 }}>
+          <Checkbox checked={updateExisting} onChange={(_, checked) => setUpdateExisting(Boolean(checked))}>
+            Обновлять существующих пользователей (по email)
+          </Checkbox>
+          <Checkbox checked={generatePasswordIfEmpty} onChange={(_, checked) => setGeneratePasswordIfEmpty(Boolean(checked))}>
+            Генерировать пароль, если Password пустой
+          </Checkbox>
         </div>
 
         <div className={styles.sampleWrap} aria-label="Пример шаблона">
           <table className={styles.sampleTable}>
             <thead>
               <tr>
-                <th>Фамилия</th>
-                <th>Имя</th>
-                <th>Электронная почта</th>
+                <th>Email</th>
+                <th>Password</th>
+                <th>ФИО</th>
+                <th>Компания</th>
                 <th>Телефон</th>
                 <th>Роль</th>
+                <th>Язык интерфейса</th>
                 <th>Заметка</th>
+                <th>Активен</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Иванов</td>
-                <td>Иван</td>
                 <td>ivanov@example.com</td>
+                <td />
+                <td>Иванов Иван</td>
+                <td>ООО Ромашка</td>
                 <td>+79990000000</td>
                 <td>manager</td>
+                <td>ru</td>
                 <td />
+                <td>Да</td>
               </tr>
               <tr>
-                <td>Петрова</td>
-                <td>Анна</td>
                 <td>anna.pet@example.com</td>
+                <td>Passw0rd!</td>
+                <td>Петрова Анна</td>
+                <td>АО Пример</td>
                 <td />
-                <td>auditor</td>
+                <td>controller</td>
+                <td>ru</td>
                 <td>Доступ до конца месяца</td>
+                <td>Нет</td>
               </tr>
             </tbody>
           </table>
@@ -138,7 +161,7 @@ export function TeamUsersImportModal ({
         {importResult ? (
           <div className={styles.result}>
             <div className={styles.success}>
-              Импорт завершён: создано {importResult.created}, пропущено {importResult.skipped}
+              Импорт завершён: создано {importResult.created}, обновлено {importResult.updated}, пропущено {importResult.skipped}
             </div>
             {importResult.errors?.length ? (
               <div className={styles.errorList}>

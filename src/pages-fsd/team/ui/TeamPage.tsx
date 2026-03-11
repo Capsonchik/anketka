@@ -34,6 +34,11 @@ export function TeamPage () {
 
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [emailFilter, setEmailFilter] = useState('')
+  const [phoneFilter, setPhoneFilter] = useState('')
+  const [companyFilter, setCompanyFilter] = useState('')
+  const [idFilter, setIdFilter] = useState('')
 
   const [tab, setTab] = useState<TeamTabKey>('users')
 
@@ -48,7 +53,11 @@ export function TeamPage () {
     email: '',
     phone: '',
     role: 'manager',
+    profileCompany: '',
+    uiLanguage: 'ru',
+    isActive: true,
     note: '',
+    password: '',
   })
 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
@@ -71,13 +80,24 @@ export function TeamPage () {
     setIsModalOpen(false)
     setSubmitError(null)
     setSubmitSuccess(null)
-    setCreateForm({ firstName: '', lastName: '', email: '', phone: '', role: 'manager', note: '' })
+    setCreateForm({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      role: 'manager',
+      profileCompany: '',
+      uiLanguage: 'ru',
+      isActive: true,
+      note: '',
+      password: '',
+    })
   }
 
   function resetCreateForm () {
     setSubmitError(null)
     setSubmitSuccess(null)
-    setCreateForm((prev) => ({ ...prev, firstName: '', lastName: '', email: '', phone: '', note: '' }))
+    setCreateForm((prev) => ({ ...prev, firstName: '', lastName: '', email: '', phone: '', profileCompany: '', note: '', password: '' }))
   }
 
   async function openDetails (userId: string, mode: 'view' | 'edit' = 'view') {
@@ -100,7 +120,21 @@ export function TeamPage () {
     }
   }
 
-  async function updateUser (userId: string, patch: { firstName: string; lastName: string; email: string; phone: string | null; role: UserRole; note: string | null }) {
+  async function updateUser (
+    userId: string,
+    patch: {
+      firstName: string
+      lastName: string
+      email: string
+      phone: string | null
+      role: UserRole
+      profileCompany: string | null
+      uiLanguage: string
+      isActive: boolean
+      note: string | null
+      password: string | null
+    },
+  ) {
     setDetailsLoading(true)
     setDetailsError(null)
     try {
@@ -113,16 +147,20 @@ export function TeamPage () {
     }
   }
 
-  async function deleteUser (userId: string) {
-    if (!window.confirm('Удалить пользователя?')) return
+  async function toggleUserActive (userId: string) {
+    const current = users.find((u) => u.id === userId) ?? details?.user ?? null
+    if (!current) return
+    const nextActive = !current.isActive
+    const q = nextActive ? 'Активировать пользователя?' : 'Деактивировать пользователя?'
+    if (!window.confirm(q)) return
     setDetailsLoading(true)
     setDetailsError(null)
     try {
-      await axiosMainRequest.delete(`${apiRoutes.team.users}/${userId}`)
+      await axiosMainRequest.patch(`${apiRoutes.team.users}/${userId}`, { isActive: nextActive })
       await loadUsers()
-      setIsDetailsOpen(false)
-      setDetails(null)
-      setDetailsMode('view')
+      if (details?.user?.id === userId) {
+        await openDetails(userId, 'view')
+      }
     } catch (err: unknown) {
       setDetailsError(getApiErrorMessage(err))
     } finally {
@@ -131,6 +169,10 @@ export function TeamPage () {
   }
 
   const canEditDetails = details?.user ? canEditTeamUser(myRole, details.user.role) : false
+
+  function isUuid (value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim())
+  }
 
   async function loadUsers (opts?: { q?: string; role?: UserRole | 'all'; companyId?: string | null }) {
     setIsLoading(true)
@@ -142,6 +184,11 @@ export function TeamPage () {
       const params: Record<string, string> = {}
       if (q) params.q = q
       if (r !== 'all') params.role = r
+      if (activeFilter !== 'all') params.is_active = activeFilter === 'active' ? 'true' : 'false'
+      if (emailFilter.trim()) params.email = emailFilter.trim()
+      if (phoneFilter.trim()) params.phone = phoneFilter.trim()
+      if (companyFilter.trim()) params.profile_company = companyFilter.trim()
+      if (idFilter.trim() && isUuid(idFilter.trim())) params.user_id = idFilter.trim()
 
       const res = await axiosMainRequest.get<TeamUsersResponse>(apiRoutes.team.users, { params })
       const items = res.data.items ?? []
@@ -188,7 +235,7 @@ export function TeamPage () {
     }, 250)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, roleFilter, myCompanyId])
+  }, [search, roleFilter, activeFilter, emailFilter, phoneFilter, companyFilter, idFilter, myCompanyId])
 
   const isEmpty = !isLoading && !error && users.length === 0 && !hasFilters
   const isNoResults = !isLoading && !error && users.length === 0 && hasFilters
@@ -228,7 +275,11 @@ export function TeamPage () {
         email: em,
         phone: phone || null,
         role: createForm.role,
+        profileCompany: createForm.profileCompany.trim() || null,
+        uiLanguage: createForm.uiLanguage || 'ru',
+        isActive: Boolean(createForm.isActive),
         note: createForm.note.trim() || null,
+        password: createForm.password.trim() || null,
       })
 
       await loadUsers()
@@ -262,7 +313,7 @@ export function TeamPage () {
               Назначения
             </button>
           ) : null}
-          {tab === 'users' && myRole === 'admin' ? (
+          {tab === 'users' && (myRole === 'admin' || myRole === 'manager') ? (
             <button type="button" className={styles.headerTextButton} onClick={() => setIsUsersImportOpen(true)}>
               Импорт Excel
             </button>
@@ -273,6 +324,7 @@ export function TeamPage () {
               type="button"
               className={styles.addIconButton}
               aria-label="Добавить участника"
+              disabled={!(myRole === 'admin' || myRole === 'manager')}
               onClick={() => {
                 setSubmitError(null)
                 setSubmitSuccess(null)
@@ -310,7 +362,7 @@ export function TeamPage () {
       {tab === 'users' ? (
         isEmpty ? (
           <div className={styles.emptyState}>
-            <Button type="button" variant="primary" onClick={() => setIsModalOpen(true)}>
+            <Button type="button" variant="primary" disabled={!(myRole === 'admin' || myRole === 'manager')} onClick={() => setIsModalOpen(true)}>
               Добавить
             </Button>
           </div>
@@ -323,8 +375,18 @@ export function TeamPage () {
               isNoResults={isNoResults}
               search={search}
               roleFilter={roleFilter}
+              activeFilter={activeFilter}
+              emailFilter={emailFilter}
+              phoneFilter={phoneFilter}
+              companyFilter={companyFilter}
+              idFilter={idFilter}
               onSearchChange={setSearch}
               onRoleFilterChange={setRoleFilter}
+              onActiveFilterChange={setActiveFilter}
+              onEmailFilterChange={setEmailFilter}
+              onPhoneFilterChange={setPhoneFilter}
+              onCompanyFilterChange={setCompanyFilter}
+              onIdFilterChange={setIdFilter}
               isAdmin={myRole === 'admin'}
               canManageAccess={myRole === 'admin' || myRole === 'manager'}
               canEditUser={(u) => canEditTeamUser(myRole, u.role)}
@@ -338,7 +400,7 @@ export function TeamPage () {
                 setLocationsUserId(userId)
                 setIsLocationsOpen(true)
               }}
-              onDelete={deleteUser}
+              onDelete={toggleUserActive}
             />
           </>
         )
@@ -357,7 +419,7 @@ export function TeamPage () {
         mode={detailsMode}
         onModeChange={setDetailsMode}
         onSave={updateUser}
-        onDelete={deleteUser}
+        onDelete={toggleUserActive}
       />
 
       <TeamUserAccessModal
@@ -403,7 +465,7 @@ export function TeamPage () {
       <TeamUsersImportModal
         open={isUsersImportOpen}
         onClose={() => setIsUsersImportOpen(false)}
-        disabled={myRole !== 'admin'}
+        disabled={!(myRole === 'admin' || myRole === 'manager')}
         onImported={() => loadUsers()}
       />
     </div>
