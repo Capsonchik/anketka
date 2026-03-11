@@ -148,6 +148,25 @@ export type ReplaceUserCompanyReportsRequest = {
   reportKeys: string[]
 }
 
+export type CloneUserMode = 'all' | 'role_groups' | 'distribution' | 'reports'
+
+export type CloneUserRequest = {
+  sourceUserId: string
+  mode: CloneUserMode
+}
+
+export type CloneUserResponse = {
+  targetUserId: string
+  sourceUserId: string
+  mode: CloneUserMode
+  changedRole: boolean
+  changedGroups: number
+  changedCompanies: number
+  changedCompanyDistributions: number
+  changedPoints: number
+  changedCompanyReports: number
+}
+
 export type UserProjectAccessItem = {
   projectId: string
   accessRole: 'controller' | 'coordinator'

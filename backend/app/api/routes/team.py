@@ -69,6 +69,7 @@ from app.schemas.distribution import (
   UserCompanyDistributionResponse,
 )
 from app.schemas.reports_access import ReplaceUserCompanyReportsRequest, UserCompanyReportsResponse
+from app.schemas.user_clone import CloneUserRequest, CloneUserResponse
 
 
 router = APIRouter()
@@ -1580,4 +1581,178 @@ async def replace_user_company_reports (
 
   await db.commit()
   return await get_user_company_reports(user_id=user_id, company_id=company_id, db=db, current_user=current_user)
+
+
+@router.post('/users/{user_id}/clone', response_model=CloneUserResponse, summary='Клонировать настройки пользователя')
+async def clone_user_settings (
+  payload: CloneUserRequest,
+  user_id: UUID = Path(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> CloneUserResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'users.edit')
+
+  home_company_id = _company_id(current_user)
+  target = await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
+  source = await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=payload.sourceUserId)
+
+  _ensure_can_manage_user(current_user, target_role=target.role)
+  _ensure_can_manage_user(current_user, target_role=source.role)
+
+  if source.id == target.id:
+    raise HTTPException(status_code=400, detail='Нельзя клонировать пользователя в самого себя')
+
+  mode = payload.mode
+  do_role = mode in ('all', 'role_groups')
+  do_distribution = mode in ('all', 'distribution')
+  do_reports = mode in ('all', 'reports')
+
+  changed_role = False
+  changed_groups = 0
+  changed_companies = 0
+  changed_company_distributions = 0
+  changed_points = 0
+  changed_company_reports = 0
+
+  manageable = await _list_manageable_companies(db, actor=current_user)
+  allowed_company_ids = {c.id for c, _ in manageable}
+  allowed_company_ids.add(home_company_id)
+
+  if do_role:
+    if target.role != source.role or (target.permissions or []) != (source.permissions or []):
+      target.role = source.role
+      target.permissions = list(source.permissions or [])
+      changed_role = True
+
+    # group memberships only within home company
+    g_res = await db.execute(
+      select(UserGroupMember.group_id)
+      .join(UserGroup, UserGroup.id == UserGroupMember.group_id)
+      .where(UserGroupMember.user_id == source.id, UserGroup.company_id == home_company_id),
+    )
+    source_group_ids = set(g_res.scalars().all())
+
+    await db.execute(
+      delete(UserGroupMember)
+      .where(UserGroupMember.user_id == target.id)
+      .where(UserGroupMember.group_id.in_(select(UserGroup.id).where(UserGroup.company_id == home_company_id))),
+    )
+    for gid in sorted(source_group_ids):
+      db.add(UserGroupMember(group_id=gid, user_id=target.id))
+    changed_groups = len(source_group_ids)
+
+  if do_distribution:
+    # company access
+    access_res = await db.execute(
+      select(UserCompanyAccess.company_id).where(UserCompanyAccess.user_id == source.id, UserCompanyAccess.company_id.in_(list(allowed_company_ids))),
+    )
+    source_access_ids = set(access_res.scalars().all())
+    source_access_ids.add(home_company_id)
+
+    # replace target access within allowed scope (excluding home)
+    await db.execute(
+      delete(UserCompanyAccess).where(
+        UserCompanyAccess.user_id == target.id,
+        UserCompanyAccess.company_id.in_(list(allowed_company_ids - {home_company_id})),
+      ),
+    )
+    for cid in sorted(source_access_ids):
+      if cid == home_company_id:
+        continue
+      db.add(UserCompanyAccess(user_id=target.id, company_id=cid, created_by_user_id=current_user.id))
+    changed_companies = len(source_access_ids)
+
+    # company distributions (filter_values)
+    dist_res = await db.execute(
+      select(UserCompanyDistribution).where(
+        UserCompanyDistribution.user_id == source.id,
+        UserCompanyDistribution.company_id.in_(list(allowed_company_ids)),
+      ),
+    )
+    source_dists = dist_res.scalars().all()
+
+    await db.execute(
+      delete(UserCompanyDistribution).where(
+        UserCompanyDistribution.user_id == target.id,
+        UserCompanyDistribution.company_id.in_(list(allowed_company_ids)),
+      ),
+    )
+    for d in source_dists:
+      db.add(
+        UserCompanyDistribution(
+          user_id=target.id,
+          company_id=d.company_id,
+          filter_values=d.filter_values or {},
+          updated_by_user_id=current_user.id,
+        ),
+      )
+    changed_company_distributions = len(source_dists)
+
+    # points per company base AP project
+    settings_res = await db.execute(select(CompanySettings).where(CompanySettings.company_id.in_(list(allowed_company_ids))))
+    settings = settings_res.scalars().all()
+    base_by_company: dict[UUID, UUID] = {}
+    for s in settings:
+      if s.base_ap_project_id is not None:
+        base_by_company[s.company_id] = s.base_ap_project_id
+
+    for company_id, project_id in base_by_company.items():
+      # if source has no access and it's not home, skip cloning points
+      if company_id != home_company_id and company_id not in source_access_ids:
+        continue
+
+      s_points_res = await db.execute(
+        select(UserPointAccess.point_id)
+        .join(ShopPoint, ShopPoint.id == UserPointAccess.point_id)
+        .where(UserPointAccess.user_id == source.id, ShopPoint.project_id == project_id),
+      )
+      source_point_ids = set(s_points_res.scalars().all())
+
+      base_point_ids_stmt = select(ShopPoint.id).where(ShopPoint.project_id == project_id)
+      await db.execute(
+        delete(UserPointAccess).where(UserPointAccess.user_id == target.id, UserPointAccess.point_id.in_(base_point_ids_stmt)),
+      )
+      for pid in sorted(source_point_ids):
+        db.add(UserPointAccess(user_id=target.id, point_id=pid, assigned_by_user_id=current_user.id))
+      changed_points += len(source_point_ids)
+
+  if do_reports:
+    rep_res = await db.execute(
+      select(UserCompanyReports).where(
+        UserCompanyReports.user_id == source.id,
+        UserCompanyReports.company_id.in_(list(allowed_company_ids)),
+      ),
+    )
+    source_reports = rep_res.scalars().all()
+
+    await db.execute(
+      delete(UserCompanyReports).where(
+        UserCompanyReports.user_id == target.id,
+        UserCompanyReports.company_id.in_(list(allowed_company_ids)),
+      ),
+    )
+    for r in source_reports:
+      db.add(
+        UserCompanyReports(
+          user_id=target.id,
+          company_id=r.company_id,
+          report_keys=list(r.report_keys or []),
+          updated_by_user_id=current_user.id,
+        ),
+      )
+    changed_company_reports = len(source_reports)
+
+  await db.commit()
+  return CloneUserResponse(
+    targetUserId=target.id,
+    sourceUserId=source.id,
+    mode=mode,
+    changedRole=changed_role,
+    changedGroups=changed_groups,
+    changedCompanies=changed_companies,
+    changedCompanyDistributions=changed_company_distributions,
+    changedPoints=changed_points,
+    changedCompanyReports=changed_company_reports,
+  )
 

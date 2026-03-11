@@ -1,0 +1,36 @@
+.body {
+  display: grid;
+  gap: 12px;
+  padding: 8px 2px 2px;
+}
+
+.row {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.72;
+}
+
+.hint {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.72;
+}
+
+.error {
+  color: rgba(218, 60, 60, 0.92);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+

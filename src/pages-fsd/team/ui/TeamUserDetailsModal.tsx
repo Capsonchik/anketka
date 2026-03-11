@@ -26,6 +26,7 @@ import type {
 } from '../model/types'
 
 import styles from './TeamUserDetailsModal.module.css'
+import { TeamUserCloneModal } from './TeamUserCloneModal'
 
 function fmtDt (value: string | null | undefined) {
   if (!value) return '—'
@@ -198,6 +199,8 @@ export function TeamUserDetailsModal ({
   const [reportsDraft, setReportsDraft] = useState<ReplaceUserCompanyReportsRequest>({ reportKeys: [] })
   const [reportsError, setReportsError] = useState<string | null>(null)
   const [isReportsSaving, setIsReportsSaving] = useState(false)
+
+  const [isCloneOpen, setIsCloneOpen] = useState(false)
 
   useEffect(() => {
     setForm(initialForm)
@@ -434,7 +437,15 @@ export function TeamUserDetailsModal ({
   }, [isAdmin, open, user?.id])
 
   return (
-    <Modal open={open} onClose={onClose} size="sm">
+    <>
+      {user ? (
+        <TeamUserCloneModal
+          open={isCloneOpen}
+          onClose={() => setIsCloneOpen(false)}
+          targetUserId={user.id}
+        />
+      ) : null}
+      <Modal open={open} onClose={onClose} size="sm">
       <Modal.Header>
         <Modal.Title>Участник</Modal.Title>
       </Modal.Header>
@@ -931,6 +942,11 @@ export function TeamUserDetailsModal ({
                 </IconButton>
               ) : null}
               {user && canEdit ? (
+                <IconButton label="Клонировать" onClick={() => setIsCloneOpen(true)} disabled={isLoading}>
+                  <Image src="/icons/copy.svg" alt="" width={16} height={16} aria-hidden="true" />
+                </IconButton>
+              ) : null}
+              {user && canEdit ? (
                 <IconButton
                   label="Сбросить пароль"
                   onClick={() => {
@@ -1001,7 +1017,8 @@ export function TeamUserDetailsModal ({
           )}
         </div>
       </Modal.Footer>
-    </Modal>
+      </Modal>
+    </>
   )
 }
 
