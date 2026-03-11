@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { Input, Modal } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
@@ -30,15 +31,24 @@ function getApiErrorMessage (err: unknown): string {
   return 'Ошибка запроса'
 }
 
-export function TeamGroupsTab ({
-  active,
-  users,
-  canManage,
-}: {
+export type TeamGroupsTabHandle = {
+  openCreate: () => void
+}
+
+type Props = {
   active: boolean
   users: TeamUser[]
   canManage: boolean
-}) {
+}
+
+export const TeamGroupsTab = forwardRef<TeamGroupsTabHandle, Props>(function TeamGroupsTab (
+  {
+    active,
+    users,
+    canManage,
+  }: Props,
+  ref,
+) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
@@ -58,7 +68,7 @@ export function TeamGroupsTab ({
     return items.filter((x) => x.name.toLowerCase().includes(s))
   }, [items, q])
 
-  async function load () {
+  const load = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
@@ -70,13 +80,25 @@ export function TeamGroupsTab ({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!active) return
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active])
+  }, [active, load])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openCreate: () => {
+        if (!canManage) return
+        setError(null)
+        setCreateName('')
+        setIsCreateOpen(true)
+      },
+    }),
+    [canManage],
+  )
 
   async function create () {
     const name = createName.trim()
@@ -126,48 +148,50 @@ export function TeamGroupsTab ({
         <div className={styles.search}>
           <Input value={q} onChange={(v) => setQ(String(v ?? ''))} placeholder="Поиск группы…" />
         </div>
-        <Button type="button" variant="primary" disabled={!canManage} onClick={() => setIsCreateOpen(true)}>
-          Создать группу
-        </Button>
       </div>
 
       {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
       {error ? <div className={styles.error}>{error}</div> : null}
 
-      <div className={styles.list}>
-        {filtered.map((g) => (
-          <div key={g.id} className={styles.card}>
-            <div style={{ minWidth: 0 }}>
-              <div className={styles.title}>{g.name}</div>
-              <div className={styles.meta}>
-                <span>Участников: {g.membersCount}</span>
-                <span>Создана: {fmtDt(g.createdAt)}</span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!canManage}
-                onClick={() => {
-                  setMembersGroupId(g.id)
-                  setMembersGroupName(g.name)
-                  setIsMembersOpen(true)
-                }}
-              >
-                Участники
-              </Button>
-              <Button type="button" variant="ghost" disabled={!canManage} onClick={() => rename(g)}>
-                Переименовать
-              </Button>
-              <Button type="button" variant="ghost" disabled={!canManage} onClick={() => remove(g)}>
-                Удалить
-              </Button>
-            </div>
-          </div>
-        ))}
-        {!filtered.length && !isLoading ? <div className={styles.hint}>Групп пока нет</div> : null}
-      </div>
+      {filtered.length ? (
+        <div className={styles.wrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Группа</th>
+                <th>Участников</th>
+                <th>Создана</th>
+                <th className={styles.actionsCol} />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((g) => (
+                <tr key={g.id}>
+                  <td className={styles.name}>{g.name}</td>
+                  <td className={styles.meta}>{g.membersCount}</td>
+                  <td className={styles.meta}>{fmtDt(g.createdAt)}</td>
+                  <td className={styles.actions}>
+                    <IconButton
+                      label="Участники"
+                      iconSrc="/icons/user.svg"
+                      disabled={!canManage}
+                      onClick={() => {
+                        setMembersGroupId(g.id)
+                        setMembersGroupName(g.name)
+                        setIsMembersOpen(true)
+                      }}
+                    />
+                    <IconButton label="Переименовать" iconSrc="/icons/edit.svg" disabled={!canManage} onClick={() => rename(g)} />
+                    <IconButton label="Удалить" iconSrc="/icons/trash.svg" disabled={!canManage} onClick={() => remove(g)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : !isLoading ? (
+        <div className={styles.hint}>Групп пока нет</div>
+      ) : null}
 
       <Modal open={isCreateOpen} onClose={() => setIsCreateOpen(false)} size="sm">
         <Modal.Header>
@@ -199,6 +223,31 @@ export function TeamGroupsTab ({
         }}
       />
     </>
+  )
+})
+
+function IconButton ({
+  label,
+  iconSrc,
+  disabled,
+  onClick,
+}: {
+  label: string
+  iconSrc: string
+  disabled: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={styles.iconButton}
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Image src={iconSrc} alt="" width={16} height={16} aria-hidden="true" />
+    </button>
   )
 }
 

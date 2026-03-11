@@ -21,6 +21,7 @@ import { TeamUserAccessModal } from './TeamUserAccessModal'
 import { TeamUserDetailsModal } from './TeamUserDetailsModal'
 import { TeamUserLocationsModal } from './TeamUserLocationsModal'
 import { TeamUsersImportModal } from './TeamUsersImportModal'
+import type { TeamGroupsTabHandle } from './TeamGroupsTab'
 import { TeamGroupsTab } from './TeamGroupsTab'
 import { TeamUsersTab } from './TeamUsersTab'
 import styles from './TeamPage.module.css'
@@ -74,6 +75,7 @@ export function TeamPage () {
   const [isLocationsOpen, setIsLocationsOpen] = useState(false)
 
   const auditorsRef = useRef<TeamAuditorsTabHandle | null>(null)
+  const groupsRef = useRef<TeamGroupsTabHandle | null>(null)
 
   const hasFilters = useMemo(() => search.trim().length > 0 || roleFilter !== 'all', [roleFilter, search])
 
@@ -356,6 +358,18 @@ export function TeamPage () {
               <Image src="/icons/add.svg" alt="" width={18} height={18} aria-hidden="true" />
             </button>
           ) : null}
+
+          {tab === 'groups' ? (
+            <button
+              type="button"
+              className={styles.addIconButton}
+              aria-label="Создать группу"
+              disabled={!(myRole === 'admin' || myRole === 'manager')}
+              onClick={() => groupsRef.current?.openCreate()}
+            >
+              <Image src="/icons/add.svg" alt="" width={18} height={18} aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -409,7 +423,7 @@ export function TeamPage () {
           </>
         )
       ) : tab === 'groups' ? (
-        <TeamGroupsTab active={tab === 'groups'} users={users} canManage={myRole === 'admin' || myRole === 'manager'} />
+        <TeamGroupsTab ref={groupsRef} active={tab === 'groups'} users={users} canManage={myRole === 'admin' || myRole === 'manager'} />
       ) : (
         <TeamAuditorsTab ref={auditorsRef} isAdmin={myRole === 'admin'} />
       )}

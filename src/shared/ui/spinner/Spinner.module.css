@@ -1,0 +1,18 @@
+.spinner {
+  --size: 16px;
+  --thickness: 2px;
+  display: inline-block;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 999px;
+  border: var(--thickness) solid rgba(0, 0, 0, 0.16);
+  border-top-color: currentColor;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

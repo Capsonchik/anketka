@@ -1,26 +1,18 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 
 import type { ClientItem, ClientsResponse } from '../model/types'
+import { ClientCard } from './ClientCard'
 import { ClientOwnersModal } from './ClientOwnersModal'
 import { ClientCreateWizardModal } from '@/pages-fsd/clients/ui/ClientCreateWizardModal'
 import { ClientEditModal } from './ClientEditModal'
 
 import styles from './ClientsPage.module.css'
-
-function fmtDt (value: string): string {
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return String(value).slice(0, 10)
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const yyyy = d.getFullYear()
-  return `${dd}.${mm}.${yyyy}`
-}
 
 export function ClientsPage () {
   const [clients, setClients] = useState<ClientItem[]>([])
@@ -34,7 +26,7 @@ export function ClientsPage () {
   const [ownersClientName, setOwnersClientName] = useState<string | null>(null)
   const [isOwnersOpen, setIsOwnersOpen] = useState(false)
 
-  async function loadClients () {
+  const loadClients = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
@@ -46,11 +38,11 @@ export function ClientsPage () {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [showArchived])
 
   useEffect(() => {
     loadClients()
-  }, [showArchived])
+  }, [loadClients])
 
   return (
     <div className={styles.page}>
@@ -82,55 +74,30 @@ export function ClientsPage () {
         ) : (
           <div className={styles.list}>
             {clients.map((c) => (
-              <div key={c.id} className={styles.card}>
-                <div className={styles.cardTitle}>{c.name}</div>
-                <div className={styles.cardMeta}>
-                  <span>Категория: {c.category || '—'}</span>
-                  <span>Создан: {fmtDt(c.createdAt)}</span>
-                  <span>АП: {c.baseApProjectId ? 'загружена' : '—'}</span>
-                  <span>{c.isArchived ? 'Архив' : 'Активен'}</span>
-                </div>
-                <div className={styles.cardActions}>
-                  <button
-                    type="button"
-                    className={styles.cardButton}
-                    onClick={() => {
-                      setEditClient(c)
-                      setIsEditOpen(true)
-                    }}
-                  >
-                    Редактировать
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.cardButton}
-                    onClick={async () => {
-                      const next = !c.isArchived
-                      const q = next ? 'Архивировать клиента?' : 'Вернуть из архива?'
-                      if (!window.confirm(q)) return
-                      try {
-                        await axiosMainRequest.patch(apiRoutes.clients.client(c.id), { isArchived: next })
-                        await loadClients()
-                      } catch (err: unknown) {
-                        setError(getApiErrorMessage(err))
-                      }
-                    }}
-                  >
-                    {c.isArchived ? 'Разархивировать' : 'Архивировать'}
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.cardButton}
-                    onClick={() => {
-                      setOwnersClientId(c.id)
-                      setOwnersClientName(c.name)
-                      setIsOwnersOpen(true)
-                    }}
-                  >
-                    Овнеры
-                  </button>
-                </div>
-              </div>
+              <ClientCard
+                key={c.id}
+                client={c}
+                onEdit={() => {
+                  setEditClient(c)
+                  setIsEditOpen(true)
+                }}
+                onToggleArchive={async () => {
+                  const next = !c.isArchived
+                  const q = next ? 'Архивировать клиента?' : 'Вернуть из архива?'
+                  if (!window.confirm(q)) return
+                  try {
+                    await axiosMainRequest.patch(apiRoutes.clients.client(c.id), { isArchived: next })
+                    await loadClients()
+                  } catch (err: unknown) {
+                    setError(getApiErrorMessage(err))
+                  }
+                }}
+                onOwners={() => {
+                  setOwnersClientId(c.id)
+                  setOwnersClientName(c.name)
+                  setIsOwnersOpen(true)
+                }}
+              />
             ))}
           </div>
         )
@@ -162,6 +129,9 @@ export function ClientsPage () {
         onClose={() => {
           setIsEditOpen(false)
           setEditClient(null)
+        }}
+        onChanged={() => {
+          loadClients()
         }}
         onSaved={() => {
           setIsEditOpen(false)

@@ -445,7 +445,7 @@ export function TeamUserDetailsModal ({
           targetUserId={user.id}
         />
       ) : null}
-      <Modal open={open} onClose={onClose} size="sm">
+      <Modal open={open} onClose={onClose} size="md">
       <Modal.Header>
         <Modal.Title>Участник</Modal.Title>
       </Modal.Header>
@@ -462,6 +462,7 @@ export function TeamUserDetailsModal ({
               <Nav.Item eventKey="reports">Отчёты</Nav.Item>
             </Nav>
 
+            <div className={styles.contentGrid}>
             <div className={styles.left}>
               <div className={styles.avatar} aria-hidden="true">
                 {initials}
@@ -926,6 +927,8 @@ export function TeamUserDetailsModal ({
                 </div>
               )}
             </div>
+            </div>
+            
           </div>
         ) : null}
       </Modal.Body>

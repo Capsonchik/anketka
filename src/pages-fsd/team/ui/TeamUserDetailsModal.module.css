@@ -4,6 +4,13 @@
 
 .content {
   display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.contentGrid {
+  display: grid;
   grid-template-columns: 160px 1fr;
   gap: 16px;
   align-items: start;

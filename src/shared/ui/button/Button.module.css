@@ -16,6 +16,13 @@
   text-decoration: none;
 }
 
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .md {
 }
 
@@ -57,6 +64,10 @@
 @media (hover: hover) and (pointer: fine) {
   .button:hover {
     transform: translateY(-1px);
+  }
+
+  .button:disabled:hover {
+    transform: none;
   }
 
   .primary:hover {

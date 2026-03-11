@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Input, Modal, SelectPicker } from 'rsuite'
+import { Button as RsuiteButton, Input, Loader, Modal, SelectPicker, Uploader } from 'rsuite'
 
-import axiosMainRequest from '@/api-config/api-config'
+import axiosMainRequest, { MAIN_API } from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import { Button } from '@/shared/ui'
 
@@ -11,7 +11,7 @@ import type { ClientItem, UpdateClientRequest } from '../model/types'
 import type { ClientFilterDef } from './ClientFiltersEditor'
 import { ClientFiltersEditor } from './ClientFiltersEditor'
 
-import styles from './ClientCreateWizardModal.module.css'
+import styles from './ClientEditModal.module.css'
 
 const categoryOptions = [
   { value: 'auto', label: 'Авто' },
@@ -38,39 +38,55 @@ export function ClientEditModal ({
   client,
   onClose,
   onSaved,
+  onChanged,
 }: {
   open: boolean
   client: ClientItem | null
   onClose: () => void
   onSaved: () => void
+  onChanged?: () => void
 }) {
-  const [isBusy, setIsBusy] = useState(false)
+  return (
+    <Modal open={open} onClose={onClose} size="lg">
+      <Modal.Header>
+        <Modal.Title>Редактирование клиента</Modal.Title>
+      </Modal.Header>
+      {open && client ? <ClientEditModalInner key={client.id} initialClient={client} onClose={onClose} onSaved={onSaved} onChanged={onChanged} /> : null}
+    </Modal>
+  )
+}
+
+function ClientEditModalInner ({
+  initialClient,
+  onClose,
+  onSaved,
+  onChanged,
+}: {
+  initialClient: ClientItem
+  onClose: () => void
+  onSaved: () => void
+  onChanged?: () => void
+}) {
+  const [busyKind, setBusyKind] = useState<'save' | 'uploadLogo' | 'uploadBackground' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const [name, setName] = useState('')
-  const [category, setCategory] = useState<string | null>(null)
-  const [theme, setTheme] = useState<Record<string, unknown>>({})
-  const [filters, setFilters] = useState<ClientFilterDef[]>([])
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [backgroundFile, setBackgroundFile] = useState<File | null>(null)
+  const [client, setClient] = useState<ClientItem>(() => initialClient)
+
+  const [name, setName] = useState(() => initialClient.name ?? '')
+  const [category, setCategory] = useState<string | null>(() => initialClient.category ?? null)
+  const [theme, setTheme] = useState<Record<string, unknown>>(() => initialClient.theme ?? {})
+  const [filters, setFilters] = useState<ClientFilterDef[]>(() => (initialClient.filters as ClientFilterDef[]) ?? [])
+  const [logoFiles, setLogoFiles] = useState<RsuiteUploadFile[]>(() => makeUploadedFileList(initialClient.logoUrl, 'logo'))
+  const [backgroundFiles, setBackgroundFiles] = useState<RsuiteUploadFile[]>(() => makeUploadedFileList(initialClient.backgroundUrl, 'background'))
 
   const presetKey = useMemo(() => ((category ?? 'other') as 'retail' | 'auto' | 'bank' | 'other'), [category])
-
-  useEffect(() => {
-    if (!open || !client) return
-    setError(null)
-    setIsBusy(false)
-    setName(client.name ?? '')
-    setCategory(client.category ?? null)
-    setTheme(client.theme ?? {})
-    setFilters((client.filters as ClientFilterDef[]) ?? [])
-    setLogoFile(null)
-    setBackgroundFile(null)
-  }, [open, client])
+  const isBusy = busyKind !== null
+  const isSaving = busyKind === 'save'
+  const isUploadingLogo = busyKind === 'uploadLogo'
+  const isUploadingBackground = busyKind === 'uploadBackground'
 
   async function save () {
-    if (!client) return
-    setIsBusy(true)
+    setBusyKind('save')
     setError(null)
     try {
       const payload: UpdateClientRequest = {
@@ -83,36 +99,130 @@ export function ClientEditModal ({
       onSaved()
     } catch (err: unknown) {
       setError(getApiErrorMessage(err))
-      setIsBusy(false)
+      setBusyKind(null)
     }
   }
 
-  async function uploadAsset (kind: 'logo' | 'background') {
-    if (!client) return
-    const file = kind === 'logo' ? logoFile : backgroundFile
-    if (!file) return
-    setIsBusy(true)
-    setError(null)
+  async function refreshClient () {
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const url = kind === 'logo' ? apiRoutes.clients.logo(client.id) : apiRoutes.clients.background(client.id)
-      await axiosMainRequest.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-      if (kind === 'logo') setLogoFile(null)
-      else setBackgroundFile(null)
-      onSaved()
+      const res = await axiosMainRequest.get<ClientItem>(apiRoutes.clients.client(client.id))
+      const next = res.data
+      setClient(next)
+      setLogoFiles(makeUploadedFileList(next.logoUrl, 'logo'))
+      setBackgroundFiles(makeUploadedFileList(next.backgroundUrl, 'background'))
     } catch (err: unknown) {
       setError(getApiErrorMessage(err))
-    } finally {
-      setIsBusy(false)
     }
+  }
+
+  const logoAction = `${MAIN_API}${apiRoutes.clients.logo(client.id)}`
+  const backgroundAction = `${MAIN_API}${apiRoutes.clients.background(client.id)}`
+  const uploaderHeaders = useMemo(() => {
+    const accessToken = readAccessTokenFromStorage()
+    return {
+      Accept: 'application/json',
+      'Accept-Language': 'ru',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    }
+  }, [])
+
+  const logoDirectHref = client.logoUrl ? toAssetHref(client.logoUrl) : null
+  const backgroundDirectHref = client.backgroundUrl ? toAssetHref(client.backgroundUrl) : null
+
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(() => logoDirectHref)
+  const [backgroundPreviewUrl, setBackgroundPreviewUrl] = useState<string | null>(() => backgroundDirectHref)
+
+  useEffect(() => {
+    let isCancelled = false
+    let createdUrl: string | null = null
+
+    async function run () {
+      const href = logoDirectHref
+      if (!href) {
+        setLogoPreviewUrl(null)
+        return
+      }
+
+      if (href.startsWith('blob:') || href.startsWith('data:')) {
+        setLogoPreviewUrl(href)
+        return
+      }
+
+      setLogoPreviewUrl(href)
+      const next = await tryFetchImageObjectUrl(href)
+      if (!next) return
+      createdUrl = next
+      if (isCancelled) {
+        URL.revokeObjectURL(createdUrl)
+        createdUrl = null
+        return
+      }
+      setLogoPreviewUrl(createdUrl)
+    }
+
+    run()
+
+    return () => {
+      isCancelled = true
+      if (createdUrl) URL.revokeObjectURL(createdUrl)
+    }
+  }, [client.logoUrl, logoDirectHref])
+
+  useEffect(() => {
+    let isCancelled = false
+    let createdUrl: string | null = null
+
+    async function run () {
+      const href = backgroundDirectHref
+      if (!href) {
+        setBackgroundPreviewUrl(null)
+        return
+      }
+
+      if (href.startsWith('blob:') || href.startsWith('data:')) {
+        setBackgroundPreviewUrl(href)
+        return
+      }
+
+      setBackgroundPreviewUrl(href)
+      const next = await tryFetchImageObjectUrl(href)
+      if (!next) return
+      createdUrl = next
+      if (isCancelled) {
+        URL.revokeObjectURL(createdUrl)
+        createdUrl = null
+        return
+      }
+      setBackgroundPreviewUrl(createdUrl)
+    }
+
+    run()
+
+    return () => {
+      isCancelled = true
+      if (createdUrl) URL.revokeObjectURL(createdUrl)
+    }
+  }, [client.backgroundUrl, backgroundDirectHref])
+
+  const logoHref = logoPreviewUrl ?? logoDirectHref
+  const backgroundHref = backgroundPreviewUrl ?? backgroundDirectHref
+
+  function applyThemePreset () {
+    setTheme((p) => ({
+      ...p,
+      primary: '#2a7fff',
+      accent: '#77dde7',
+      gradientFrom: '#e6f0ff',
+      gradientTo: '#f4fbff',
+    }))
+  }
+
+  function clearTheme () {
+    setTheme({})
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="lg">
-      <Modal.Header>
-        <Modal.Title>Редактирование клиента</Modal.Title>
-      </Modal.Header>
+    <>
       <Modal.Body>
         {error ? <div className={styles.error}>{error}</div> : null}
 
@@ -120,6 +230,7 @@ export function ClientEditModal ({
           <div className={styles.row}>
             <div className={styles.label}>Категория</div>
             <SelectPicker
+              size='sm'
               value={category}
               onChange={(v) => setCategory((v as string | null) ?? null)}
               data={categoryOptions}
@@ -132,49 +243,175 @@ export function ClientEditModal ({
 
           <div className={styles.row}>
             <div className={styles.label}>Название</div>
-            <Input value={name} onChange={(v) => setName(String(v ?? ''))} disabled={isBusy} />
+            <Input size='sm' value={name} onChange={(v) => setName(String(v ?? ''))} disabled={isBusy} />
           </div>
 
           <div className={styles.row}>
             <div className={styles.label}>Лого</div>
-            <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)} />
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Button type="button" variant="secondary" disabled={!logoFile || isBusy} onClick={() => uploadAsset('logo')}>
-                Загрузить лого
-              </Button>
-              {client?.logoUrl ? <a href={client.logoUrl} target="_blank" rel="noreferrer" className={styles.hint}>Открыть</a> : null}
+            <div className={styles.inlineRow}>
+              <Uploader
+                action={logoAction}
+                withCredentials
+                disabled={isBusy}
+                autoUpload
+                multiple={false}
+                accept="image/*"
+                listType="picture-text"
+                fileList={logoFiles}
+                onChange={(next) => setLogoFiles(next as RsuiteUploadFile[])}
+                onUpload={() => {
+                  setError(null)
+                  setBusyKind('uploadLogo')
+                }}
+                onSuccess={() => {
+                  setBusyKind(null)
+                  setLogoFiles([])
+                  onChanged?.()
+                  refreshClient()
+                }}
+                onError={(reason) => {
+                  setBusyKind(null)
+                  setError(getUploaderErrorMessage(reason))
+                }}
+                headers={uploaderHeaders}
+                renderThumbnail={(file, thumbnail) => {
+                  if (!logoPreviewUrl || file.status !== 'finished') return thumbnail
+                  return (
+                    <img
+                      src={logoPreviewUrl}
+                      alt=""
+                      aria-hidden="true"
+                      style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }}
+                    />
+                  )
+                }}
+              >
+                <RsuiteButton appearance="subtle" size="sm" loading={isUploadingLogo}>
+                  Загрузить лого
+                </RsuiteButton>
+              </Uploader>
+              {logoHref ? (
+                <button
+                  type="button"
+                  className={[styles.hint, styles.linkButton].filter(Boolean).join(' ')}
+                  onClick={() => openImageInNewTab(logoHref)}
+                  disabled={isBusy}
+                >
+                  Открыть
+                </button>
+              ) : null}
             </div>
           </div>
 
           <div className={styles.row}>
             <div className={styles.label}>Фон</div>
-            <input type="file" accept="image/*" onChange={(e) => setBackgroundFile(e.target.files?.[0] ?? null)} />
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Button type="button" variant="secondary" disabled={!backgroundFile || isBusy} onClick={() => uploadAsset('background')}>
-                Загрузить фон
-              </Button>
-              {client?.backgroundUrl ? <a href={client.backgroundUrl} target="_blank" rel="noreferrer" className={styles.hint}>Открыть</a> : null}
+            <div className={styles.inlineRow}>
+              <Uploader
+                action={backgroundAction}
+                withCredentials
+                disabled={isBusy}
+                autoUpload
+                multiple={false}
+                accept="image/*"
+                listType="picture-text"
+                fileList={backgroundFiles}
+                onChange={(next) => setBackgroundFiles(next as RsuiteUploadFile[])}
+                onUpload={() => {
+                  setError(null)
+                  setBusyKind('uploadBackground')
+                }}
+                onSuccess={() => {
+                  setBusyKind(null)
+                  setBackgroundFiles([])
+                  onChanged?.()
+                  refreshClient()
+                }}
+                onError={(reason) => {
+                  setBusyKind(null)
+                  setError(getUploaderErrorMessage(reason))
+                }}
+                headers={uploaderHeaders}
+                renderThumbnail={(file, thumbnail) => {
+                  if (!backgroundPreviewUrl || file.status !== 'finished') return thumbnail
+                  return (
+                    <img
+                      src={backgroundPreviewUrl}
+                      alt=""
+                      aria-hidden="true"
+                      style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }}
+                    />
+                  )
+                }}
+              >
+                <RsuiteButton appearance="subtle" size="sm" loading={isUploadingBackground}>
+                  Загрузить фон
+                </RsuiteButton>
+              </Uploader>
+              {backgroundHref ? (
+                <button
+                  type="button"
+                  className={[styles.hint, styles.linkButton].filter(Boolean).join(' ')}
+                  onClick={() => openImageInNewTab(backgroundHref)}
+                  disabled={isBusy}
+                >
+                  Открыть
+                </button>
+              ) : null}
             </div>
           </div>
 
           <div className={styles.row}>
-            <div className={styles.label}>Цвета</div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <label className={styles.hint}>
-                Primary
-                <input type="color" value={String(theme.primary ?? '#2a7fff')} onChange={(e) => setTheme((p) => ({ ...p, primary: e.target.value }))} />
+            <div className={styles.sectionHeaderRow}>
+              <div className={styles.label}>Цвета</div>
+              <div className={styles.sectionActions}>
+                <Button type="button" size="sm" variant="secondary" disabled={isBusy} onClick={applyThemePreset}>
+                  Пресет
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={isBusy} onClick={clearTheme}>
+                  Очистить
+                </Button>
+              </div>
+            </div>
+            <div className={styles.colorList}>
+              <label className={styles.colorItem}>
+                <span className={[styles.hint, styles.colorName].filter(Boolean).join(' ')}>Primary</span>
+                <input
+                  className={styles.colorInput}
+                  type="color"
+                  value={String(theme.primary ?? '#2a7fff')}
+                  onChange={(e) => setTheme((p) => ({ ...p, primary: e.target.value }))}
+                  disabled={isBusy}
+                />
               </label>
-              <label className={styles.hint}>
-                Accent
-                <input type="color" value={String(theme.accent ?? '#77dde7')} onChange={(e) => setTheme((p) => ({ ...p, accent: e.target.value }))} />
+              <label className={styles.colorItem}>
+                <span className={[styles.hint, styles.colorName].filter(Boolean).join(' ')}>Accent</span>
+                <input
+                  className={styles.colorInput}
+                  type="color"
+                  value={String(theme.accent ?? '#77dde7')}
+                  onChange={(e) => setTheme((p) => ({ ...p, accent: e.target.value }))}
+                  disabled={isBusy}
+                />
               </label>
-              <label className={styles.hint}>
-                Gradient From
-                <input type="color" value={String(theme.gradientFrom ?? '#e6f0ff')} onChange={(e) => setTheme((p) => ({ ...p, gradientFrom: e.target.value }))} />
+              <label className={styles.colorItem}>
+                <span className={[styles.hint, styles.colorName].filter(Boolean).join(' ')}>Gradient From</span>
+                <input
+                  className={styles.colorInput}
+                  type="color"
+                  value={String(theme.gradientFrom ?? '#e6f0ff')}
+                  onChange={(e) => setTheme((p) => ({ ...p, gradientFrom: e.target.value }))}
+                  disabled={isBusy}
+                />
               </label>
-              <label className={styles.hint}>
-                Gradient To
-                <input type="color" value={String(theme.gradientTo ?? '#f4fbff')} onChange={(e) => setTheme((p) => ({ ...p, gradientTo: e.target.value }))} />
+              <label className={styles.colorItem}>
+                <span className={[styles.hint, styles.colorName].filter(Boolean).join(' ')}>Gradient To</span>
+                <input
+                  className={styles.colorInput}
+                  type="color"
+                  value={String(theme.gradientTo ?? '#f4fbff')}
+                  onChange={(e) => setTheme((p) => ({ ...p, gradientTo: e.target.value }))}
+                  disabled={isBusy}
+                />
               </label>
             </div>
           </div>
@@ -188,18 +425,145 @@ export function ClientEditModal ({
       <Modal.Footer>
         <div className={styles.footer}>
           <div className={styles.footerLeft}>
-            <Button type="button" variant="ghost" disabled={isBusy} onClick={onClose}>
+            <Button type="button" size="sm" variant="ghost" disabled={isBusy} onClick={onClose}>
               Закрыть
             </Button>
           </div>
           <div className={styles.footerRight}>
-            <Button type="button" variant="primary" disabled={isBusy} onClick={save}>
-              {isBusy ? 'Сохранение…' : 'Сохранить'}
+            <Button
+              type="button"
+              size="sm"
+              variant="primary"
+              disabled={isBusy}
+              leftSlot={isSaving ? <Loader size="xs" inverse /> : null}
+              onClick={save}
+            >
+              {isSaving ? 'Сохранение' : 'Сохранить'}
             </Button>
           </div>
         </div>
       </Modal.Footer>
-    </Modal>
+    </>
   )
+}
+
+type RsuiteUploadFile = {
+  name?: string
+  fileKey?: number | string
+  status?: 'inited' | 'uploading' | 'error' | 'finished'
+  progress?: number
+  url?: string
+  blobFile?: File
+}
+
+function getUploaderErrorMessage (reason: unknown): string {
+  if (typeof reason === 'string' && reason.trim()) return reason
+  if (reason && typeof reason === 'object') {
+    const message = (reason as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return message
+  }
+  return 'Ошибка загрузки файла'
+}
+
+function readAccessTokenFromStorage (): string | null {
+  try {
+    return window.localStorage.getItem('anketka_access_token')
+  } catch {
+    return null
+  }
+}
+
+function makeUploadedFileList (url: string | null, name: string): RsuiteUploadFile[] {
+  if (!url) return []
+  return [{ name, status: 'finished', url: toAssetHref(url) }]
+}
+
+function toAssetHref (url: string): string {
+  const v = String(url ?? '').trim()
+  if (!v) return v
+  if (/^(blob:|data:)/i.test(v)) return v
+  if (/^https?:\/\//i.test(v)) return v
+
+  const base = String(MAIN_API ?? '')
+  if (!base) return v.startsWith('/') ? v : `/${v}`
+
+  if (/^https?:\/\//i.test(base)) {
+    try {
+      const baseUrl = new URL(base)
+      const basePath = baseUrl.pathname.endsWith('/') ? baseUrl.pathname : `${baseUrl.pathname}/`
+      const basePathNoSlash = basePath.startsWith('/') ? basePath.slice(1) : basePath
+      if (v.startsWith('/')) return new URL(v, baseUrl.origin).toString()
+
+      const rel = v.startsWith(basePathNoSlash) ? v.slice(basePathNoSlash.length) : v
+      return new URL(rel, baseUrl.toString()).toString()
+    } catch {
+      // fallback below
+    }
+  }
+
+  if (v.startsWith('/')) return v
+
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`
+  const baseNoSlash = normalizedBase.startsWith('/') ? normalizedBase.slice(1) : normalizedBase
+  if (v.startsWith(baseNoSlash)) return `/${v}`
+  return `${normalizedBase}${v}`
+}
+
+async function tryFetchImageObjectUrl (href: string): Promise<string | null> {
+  try {
+    const res = await axiosMainRequest.get(href, {
+      responseType: 'blob',
+      headers: { Accept: 'image/*,*/*;q=0.8' },
+    })
+
+    const blob = res.data as Blob
+    if (!blob) return null
+    return URL.createObjectURL(blob)
+  } catch {
+    return null
+  }
+}
+
+function openImageInNewTab (href: string) {
+  if (typeof window === 'undefined') return
+
+  const safeHref = escapeHtmlAttr(String(href))
+
+  const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Изображение</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #0b0f1a; }
+      .wrap { height: 100%; display: grid; place-items: center; padding: 18px; }
+      img { max-width: min(100%, 1200px); max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.45); background: #111827; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <img src="${safeHref}" alt="" />
+    </div>
+  </body>
+</html>`
+
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  const a = window.document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  a.click()
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+function escapeHtmlAttr (value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
 }
 

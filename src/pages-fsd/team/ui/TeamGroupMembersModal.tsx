@@ -157,8 +157,9 @@ export function TeamGroupMembersModal ({
             onChange={(v) => setAddEmail(String(v ?? ''))}
             placeholder="Добавить по email…"
             disabled={isLoading || isSaving}
+            size='sm'
           />
-          <Button type="button" variant="secondary" disabled={!addEmail.trim() || isLoading || isSaving} onClick={addByEmail}>
+          <Button size='sm' type="button" variant="secondary" disabled={!addEmail.trim() || isLoading || isSaving} onClick={addByEmail}>
             Добавить
           </Button>
         </div>
@@ -174,6 +175,7 @@ export function TeamGroupMembersModal ({
               disabled={isLoading || isSaving}
               placeholder="Участники…"
               searchable
+              size='sm'
             />
           </div>
         </div>
@@ -217,10 +219,10 @@ export function TeamGroupMembersModal ({
       </Modal.Body>
       <Modal.Footer>
         <div className={styles.footer}>
-          <Button type="button" variant="ghost" disabled={isSaving} onClick={onClose}>
+          <Button size='sm' type="button" variant="ghost" disabled={isSaving} onClick={onClose}>
             Закрыть
           </Button>
-          <Button type="button" variant="primary" disabled={isSaving} onClick={save}>
+          <Button size='sm' type="button" variant="primary" disabled={isSaving} onClick={save}>
             {isSaving ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>

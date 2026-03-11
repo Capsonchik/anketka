@@ -1,0 +1,116 @@
+.grid {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.row {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: var(--brand-primary);
+}
+
+.linkButton:disabled {
+  cursor: not-allowed;
+  text-decoration: none;
+  opacity: 0.6;
+}
+
+.linkButton:not(:disabled):hover {
+  color: #2b9dff;
+}
+
+.sectionHeaderRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.sectionActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.error {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(180, 40, 40, 1);
+}
+
+.inlineRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.colorList {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.colorItem {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.colorName {
+  min-width: 96px;
+}
+
+.colorInput {
+  width: 34px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.footerLeft,
+.footerRight {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
