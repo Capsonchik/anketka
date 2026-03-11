@@ -22,9 +22,12 @@ export function TeamUsersTab ({
   onSearchChange,
   onRoleFilterChange,
   isAdmin,
+  canManageAccess,
   canEditUser,
   onOpenDetails,
   onEdit,
+  onAccess,
+  onLocations,
   onDelete,
 }: {
   users: TeamUser[]
@@ -36,9 +39,12 @@ export function TeamUsersTab ({
   onSearchChange: (value: string) => void
   onRoleFilterChange: (value: UserRole | 'all') => void
   isAdmin: boolean
+  canManageAccess: boolean
   canEditUser: (user: TeamUser) => boolean
   onOpenDetails: (userId: string) => void
   onEdit: (userId: string) => void
+  onAccess: (userId: string) => void
+  onLocations: (userId: string) => void
   onDelete: (userId: string) => void
 }) {
   const [view, setView] = useState<TeamUsersViewMode>('cards')
@@ -85,8 +91,12 @@ export function TeamUsersTab ({
               user={u}
               onOpen={() => onOpenDetails(u.id)}
               onEdit={() => onEdit(u.id)}
+              onAccess={() => onAccess(u.id)}
+              onLocations={() => onLocations(u.id)}
               onDelete={() => onDelete(u.id)}
               canEdit={canEditUser(u)}
+              canAccess={canManageAccess}
+              canLocations={canManageAccess}
               canDelete={isAdmin}
             />
           ))}
@@ -96,8 +106,12 @@ export function TeamUsersTab ({
           users={users}
           onOpen={(userId) => onOpenDetails(userId)}
           onEdit={(userId) => onEdit(userId)}
+          onAccess={(userId) => onAccess(userId)}
+          onLocations={(userId) => onLocations(userId)}
           onDelete={(userId) => onDelete(userId)}
           canEdit={canEditUser}
+          canAccess={canManageAccess}
+          canLocations={canManageAccess}
           canDelete={isAdmin}
         />
       )}

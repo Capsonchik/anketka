@@ -9,15 +9,23 @@ export function TeamUsersTable ({
   users,
   onOpen,
   onEdit,
+  onAccess,
+  onLocations,
   onDelete,
   canEdit,
+  canAccess,
+  canLocations,
   canDelete,
 }: {
   users: TeamUser[]
   onOpen: (userId: string) => void
   onEdit: (userId: string) => void
+  onAccess: (userId: string) => void
+  onLocations: (userId: string) => void
   onDelete: (userId: string) => void
   canEdit: (user: TeamUser) => boolean
+  canAccess: boolean
+  canLocations: boolean
   canDelete: boolean
 }) {
   return (
@@ -52,6 +60,26 @@ export function TeamUsersTable ({
                     onClick={(e) => {
                       e.stopPropagation()
                       onEdit(u.id)
+                    }}
+                  />
+                ) : null}
+                {canAccess ? (
+                  <IconButton
+                    label="Доступы"
+                    iconSrc="/icons/pin.svg"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onAccess(u.id)
+                    }}
+                  />
+                ) : null}
+                {canLocations ? (
+                  <IconButton
+                    label="Локации"
+                    iconSrc="/icons/checklist.svg"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onLocations(u.id)
                     }}
                   />
                 ) : null}

@@ -1,12 +1,13 @@
 from fastapi import APIRouter
 
-from app.api.routes import auth, projects, team, users, surveys, auditors, public_pa, price_monitoring, auditor_auth, auditor_portal
+from app.api.routes import auth, projects, team, users, surveys, auditors, public_pa, price_monitoring, auditor_auth, auditor_portal, clients
 
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix='/auth', tags=['Авторизация'])
 api_router.include_router(users.router, prefix='/users', tags=['Пользователи'])
 api_router.include_router(team.router, prefix='/team', tags=['Команда'])
+api_router.include_router(clients.router, prefix='/clients', tags=['Клиенты'])
 api_router.include_router(auditors.router, prefix='/auditors', tags=['Аудиторы'])
 api_router.include_router(auditor_auth.router, prefix='/auditor-auth', tags=['Аудитор: авторизация'])
 api_router.include_router(auditor_portal.router, prefix='/auditor', tags=['Аудитор'])

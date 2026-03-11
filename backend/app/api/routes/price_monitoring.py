@@ -21,6 +21,8 @@ from app.models.survey_page import SurveyPage
 from app.models.survey_question import SurveyQuestion
 from app.models.survey_question_option import SurveyQuestionOption
 from app.models.user import User
+from app.models.user_project_access import UserProjectAccess
+from app.models.user_role import UserRole
 from app.schemas.price_monitoring import (
   PriceMonitoringAttemptItem,
   PriceMonitoringAttemptDetailsResponse,
@@ -36,6 +38,37 @@ from app.schemas.surveys import SurveyBuilderResponse, SurveyPageItem, SurveyQue
 
 
 router = APIRouter()
+
+def _scope_filter_for_user (
+  *,
+  items: list[tuple[UUID, list]],
+  region_expr,
+) -> object | None:
+  conds: list[object] = []
+  for project_id, regions_raw in items:
+    regions = [str(x).strip() for x in (regions_raw or []) if str(x).strip()]
+    if '*' in regions:
+      conds.append(SurveyAttempt.project_id == project_id)
+      continue
+    if not regions:
+      continue
+    conds.append((SurveyAttempt.project_id == project_id) & region_expr.in_(regions))
+
+  if not conds:
+    return None
+  if len(conds) == 1:
+    return conds[0]
+  from sqlalchemy import or_  # local import to avoid large diff
+  return or_(*conds)
+
+
+async def _load_user_scopes (db: AsyncSession, *, company_id: UUID, user_id: UUID) -> list[tuple[UUID, list]]:
+  res = await db.execute(
+    select(UserProjectAccess.project_id, UserProjectAccess.region_codes)
+    .join(Project, Project.id == UserProjectAccess.project_id)
+    .where(UserProjectAccess.user_id == user_id, Project.company_id == company_id),
+  )
+  return [(pid, regions) for pid, regions in res.all()]
 
 
 def _parse_iso_date (value: str | None) -> date | None:
@@ -167,12 +200,13 @@ async def get_price_monitoring_stats (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> PriceMonitoringStatsResponse:
+  company_id = getattr(current_user, 'active_company_id', current_user.company_id)
   d_from = _parse_iso_date(dateFrom)
   d_to = _parse_iso_date(dateTo)
 
   filters = [
-    Project.company_id == current_user.company_id,
-    Survey.company_id == current_user.company_id,
+    Project.company_id == company_id,
+    Survey.company_id == company_id,
     Survey.category == 'price_monitoring',
   ]
   if projectId is not None:
@@ -185,6 +219,19 @@ async def get_price_monitoring_stats (
   if d_to is not None:
     filters.append(SurveyAttempt.submitted_at.is_not(None))
     filters.append(SurveyAttempt.submitted_at <= _day_end(d_to))
+
+  region_expr = func.coalesce(
+    func.jsonb_extract_path_text(SurveyAttempt.answers, 'answers', 'screening', 'region'),
+    func.jsonb_extract_path_text(SurveyAttempt.answers, 'region'),
+  )
+
+  scope_filter = None
+  if current_user.role in (UserRole.controller, UserRole.coordinator):
+    scopes = await _load_user_scopes(db, company_id=company_id, user_id=current_user.id)
+    scope_filter = _scope_filter_for_user(items=scopes, region_expr=region_expr)
+    if scope_filter is None:
+      return PriceMonitoringStatsResponse(totalAttempts=0, uniqueRespondents=0, uniqueShops=0, byDay=[], topRegions=[], topCities=[], topShopBrands=[])
+    filters.append(scope_filter)
 
   total_res = await db.execute(
     select(func.count())
@@ -238,8 +285,8 @@ async def get_price_monitoring_stats (
     .join(Project, Project.id == SurveyAttempt.project_id)
     .join(Survey, Survey.id == SurveyAttempt.survey_id)
     .where(
-      Project.company_id == current_user.company_id,
-      Survey.company_id == current_user.company_id,
+      Project.company_id == company_id,
+      Survey.company_id == company_id,
       Survey.category == 'price_monitoring',
       SurveyAttempt.submitted_at.is_not(None),
     )
@@ -255,6 +302,8 @@ async def get_price_monitoring_stats (
     by_day_stmt = by_day_stmt.where(SurveyAttempt.submitted_at >= _day_start(d_from))
   if d_to is not None:
     by_day_stmt = by_day_stmt.where(SurveyAttempt.submitted_at <= _day_end(d_to))
+  if scope_filter is not None:
+    by_day_stmt = by_day_stmt.where(scope_filter)
 
   by_day_res = await db.execute(by_day_stmt)
   by_day = []
@@ -264,10 +313,6 @@ async def get_price_monitoring_stats (
     by_day.append(PriceMonitoringDailyCountItem(day=day_dt.date(), count=int(cnt or 0)))
   by_day.reverse()
 
-  region_expr = func.coalesce(
-    func.jsonb_extract_path_text(SurveyAttempt.answers, 'answers', 'screening', 'region'),
-    func.jsonb_extract_path_text(SurveyAttempt.answers, 'region'),
-  )
   city_expr = func.coalesce(
     func.jsonb_extract_path_text(SurveyAttempt.answers, 'answers', 'screening', 'city'),
     func.jsonb_extract_path_text(SurveyAttempt.answers, 'city'),
@@ -279,8 +324,8 @@ async def get_price_monitoring_stats (
     .join(Project, Project.id == SurveyAttempt.project_id)
     .join(Survey, Survey.id == SurveyAttempt.survey_id)
     .where(
-      Project.company_id == current_user.company_id,
-      Survey.company_id == current_user.company_id,
+      Project.company_id == company_id,
+      Survey.company_id == company_id,
       Survey.category == 'price_monitoring',
       SurveyAttempt.submitted_at.is_not(None),
       region_expr.is_not(None),
@@ -298,6 +343,8 @@ async def get_price_monitoring_stats (
     top_regions_stmt = top_regions_stmt.where(SurveyAttempt.submitted_at >= _day_start(d_from))
   if d_to is not None:
     top_regions_stmt = top_regions_stmt.where(SurveyAttempt.submitted_at <= _day_end(d_to))
+  if scope_filter is not None:
+    top_regions_stmt = top_regions_stmt.where(scope_filter)
   top_regions_res = await db.execute(top_regions_stmt)
   top_regions = [PriceMonitoringCountPoint(label=str(k), count=int(cnt or 0)) for k, cnt in top_regions_res.all() if k]
 
@@ -307,8 +354,8 @@ async def get_price_monitoring_stats (
     .join(Project, Project.id == SurveyAttempt.project_id)
     .join(Survey, Survey.id == SurveyAttempt.survey_id)
     .where(
-      Project.company_id == current_user.company_id,
-      Survey.company_id == current_user.company_id,
+      Project.company_id == company_id,
+      Survey.company_id == company_id,
       Survey.category == 'price_monitoring',
       SurveyAttempt.submitted_at.is_not(None),
       city_expr.is_not(None),
@@ -326,6 +373,8 @@ async def get_price_monitoring_stats (
     top_cities_stmt = top_cities_stmt.where(SurveyAttempt.submitted_at >= _day_start(d_from))
   if d_to is not None:
     top_cities_stmt = top_cities_stmt.where(SurveyAttempt.submitted_at <= _day_end(d_to))
+  if scope_filter is not None:
+    top_cities_stmt = top_cities_stmt.where(scope_filter)
   top_cities_res = await db.execute(top_cities_stmt)
   top_cities = [PriceMonitoringCountPoint(label=str(k), count=int(cnt or 0)) for k, cnt in top_cities_res.all() if k]
 
@@ -339,8 +388,8 @@ async def get_price_monitoring_stats (
     .join(Project, Project.id == SurveyAttempt.project_id)
     .join(Survey, Survey.id == SurveyAttempt.survey_id)
     .where(
-      Project.company_id == current_user.company_id,
-      Survey.company_id == current_user.company_id,
+      Project.company_id == company_id,
+      Survey.company_id == company_id,
       Survey.category == 'price_monitoring',
       SurveyAttempt.submitted_at.is_not(None),
       brand_id_expr.is_not(None),
@@ -358,6 +407,8 @@ async def get_price_monitoring_stats (
     top_brands_stmt = top_brands_stmt.where(SurveyAttempt.submitted_at >= _day_start(d_from))
   if d_to is not None:
     top_brands_stmt = top_brands_stmt.where(SurveyAttempt.submitted_at <= _day_end(d_to))
+  if scope_filter is not None:
+    top_brands_stmt = top_brands_stmt.where(scope_filter)
   top_brands_res = await db.execute(top_brands_stmt)
   brand_ids = [k for k, _ in top_brands_res.all() if k]
 
@@ -409,8 +460,14 @@ async def list_price_monitoring_attempts (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> PriceMonitoringAttemptsResponse:
+  company_id = getattr(current_user, 'active_company_id', current_user.company_id)
   d_from = _parse_iso_date(dateFrom)
   d_to = _parse_iso_date(dateTo)
+
+  region_expr = func.coalesce(
+    func.jsonb_extract_path_text(SurveyAttempt.answers, 'answers', 'screening', 'region'),
+    func.jsonb_extract_path_text(SurveyAttempt.answers, 'region'),
+  )
 
   stmt = (
     select(SurveyAttempt, Project, Survey, SurveyInvite, Auditor)
@@ -419,8 +476,8 @@ async def list_price_monitoring_attempts (
     .outerjoin(SurveyInvite, SurveyInvite.token == SurveyAttempt.invite_token)
     .outerjoin(Auditor, Auditor.id == SurveyAttempt.auditor_id)
     .where(
-      Project.company_id == current_user.company_id,
-      Survey.company_id == current_user.company_id,
+      Project.company_id == company_id,
+      Survey.company_id == company_id,
       Survey.category == 'price_monitoring',
     )
     .order_by(SurveyAttempt.submitted_at.desc().nullslast(), SurveyAttempt.created_at.desc())
@@ -434,6 +491,13 @@ async def list_price_monitoring_attempts (
     stmt = stmt.where(SurveyAttempt.submitted_at.is_not(None), SurveyAttempt.submitted_at >= _day_start(d_from))
   if d_to is not None:
     stmt = stmt.where(SurveyAttempt.submitted_at.is_not(None), SurveyAttempt.submitted_at <= _day_end(d_to))
+
+  if current_user.role in (UserRole.controller, UserRole.coordinator):
+    scopes = await _load_user_scopes(db, company_id=company_id, user_id=current_user.id)
+    scope_filter = _scope_filter_for_user(items=scopes, region_expr=region_expr)
+    if scope_filter is None:
+      return PriceMonitoringAttemptsResponse(items=[], total=0, limit=limit, offset=offset)
+    stmt = stmt.where(scope_filter)
 
   if q and q.strip():
     like = f'%{q.strip()}%'
@@ -585,6 +649,21 @@ async def get_price_monitoring_attempt_details (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> PriceMonitoringAttemptDetailsResponse:
+  company_id = getattr(current_user, 'active_company_id', current_user.company_id)
+
+  region_expr = func.coalesce(
+    func.jsonb_extract_path_text(SurveyAttempt.answers, 'answers', 'screening', 'region'),
+    func.jsonb_extract_path_text(SurveyAttempt.answers, 'region'),
+  )
+
+  extra_filters: list[object] = []
+  if current_user.role in (UserRole.controller, UserRole.coordinator):
+    scopes = await _load_user_scopes(db, company_id=company_id, user_id=current_user.id)
+    scope_filter = _scope_filter_for_user(items=scopes, region_expr=region_expr)
+    if scope_filter is None:
+      raise HTTPException(status_code=404, detail='Прохождение не найдено')
+    extra_filters.append(scope_filter)
+
   res = await db.execute(
     select(SurveyAttempt, Project, Survey, SurveyInvite, Auditor)
     .join(Project, Project.id == SurveyAttempt.project_id)
@@ -593,9 +672,10 @@ async def get_price_monitoring_attempt_details (
     .outerjoin(Auditor, Auditor.id == SurveyAttempt.auditor_id)
     .where(
       SurveyAttempt.id == attempt_id,
-      Project.company_id == current_user.company_id,
-      Survey.company_id == current_user.company_id,
+      Project.company_id == company_id,
+      Survey.company_id == company_id,
       Survey.category == 'price_monitoring',
+      *extra_filters,
     ),
   )
   row = res.first()

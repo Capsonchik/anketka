@@ -9,15 +9,23 @@ export function TeamUserCard ({
   user,
   onOpen,
   onEdit,
+  onAccess,
+  onLocations,
   onDelete,
   canEdit,
+  canAccess,
+  canLocations,
   canDelete,
 }: {
   user: TeamUser
   onOpen: () => void
   onEdit: () => void
+  onAccess: () => void
+  onLocations: () => void
   onDelete: () => void
   canEdit: boolean
+  canAccess: boolean
+  canLocations: boolean
   canDelete: boolean
 }) {
   const initials = getInitials(user.firstName, user.lastName)
@@ -55,6 +63,32 @@ export function TeamUserCard ({
             }}
           >
             <Image src="/icons/edit.svg" alt="" width={16} height={16} aria-hidden="true" />
+          </button>
+        ) : null}
+        {canAccess ? (
+          <button
+            type="button"
+            className={styles.iconButton}
+            aria-label="Доступы"
+            onClick={(e) => {
+              e.stopPropagation()
+              onAccess()
+            }}
+          >
+            <Image src="/icons/pin.svg" alt="" width={16} height={16} aria-hidden="true" />
+          </button>
+        ) : null}
+        {canLocations ? (
+          <button
+            type="button"
+            className={styles.iconButton}
+            aria-label="Локации"
+            onClick={(e) => {
+              e.stopPropagation()
+              onLocations()
+            }}
+          >
+            <Image src="/icons/checklist.svg" alt="" width={16} height={16} aria-hidden="true" />
           </button>
         ) : null}
         {canDelete ? (

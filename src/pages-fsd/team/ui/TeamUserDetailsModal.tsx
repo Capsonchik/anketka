@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Input, Modal, SelectPicker } from 'rsuite'
 import Image from 'next/image'
 
+import axiosMainRequest from '@/api-config/api-config'
+import { apiRoutes } from '@/api-config/api-routes'
 import { userRoleLabel } from '@/entities/user'
 import { userRoleOptions, type UserRole } from '@/entities/user'
-import type { TeamUserDetailsResponse } from '../model/types'
+import type { TeamUserDetailsResponse, UserPointAccessResponse, UserProjectAccessResponse } from '../model/types'
 
 import styles from './TeamUserDetailsModal.module.css'
 
@@ -54,10 +56,49 @@ export function TeamUserDetailsModal ({
   }, [user])
 
   const [form, setForm] = useState(initialForm)
+  const [access, setAccess] = useState<UserProjectAccessResponse | null>(null)
+  const [accessError, setAccessError] = useState<string | null>(null)
+  const [pointsAccess, setPointsAccess] = useState<UserPointAccessResponse | null>(null)
+  const [pointsAccessError, setPointsAccessError] = useState<string | null>(null)
 
   useEffect(() => {
     setForm(initialForm)
   }, [initialForm])
+
+  useEffect(() => {
+    const uid = user?.id
+    if (!open || !uid || !isAdmin) {
+      setAccess(null)
+      setAccessError(null)
+      setPointsAccess(null)
+      setPointsAccessError(null)
+      return
+    }
+    let isAlive = true
+    setAccess(null)
+    setAccessError(null)
+    setPointsAccess(null)
+    setPointsAccessError(null)
+
+    Promise.all([
+      axiosMainRequest.get<UserProjectAccessResponse>(apiRoutes.team.userProjectAccess(uid)),
+      axiosMainRequest.get<UserPointAccessResponse>(apiRoutes.team.userPointAccess(uid)),
+    ])
+      .then(([aRes, pRes]) => {
+        if (!isAlive) return
+        setAccess(aRes.data)
+        setPointsAccess(pRes.data)
+      })
+      .catch((err: unknown) => {
+        if (!isAlive) return
+        const msg = err instanceof Error ? err.message : 'Не удалось загрузить привязки'
+        setAccessError(msg)
+        setPointsAccessError(msg)
+      })
+    return () => {
+      isAlive = false
+    }
+  }, [isAdmin, open, user?.id])
 
   return (
     <Modal open={open} onClose={onClose} size="sm">
@@ -87,6 +128,26 @@ export function TeamUserDetailsModal ({
                   <Field label="Почта" value={user.email} isMonospace />
                   <Field label="Телефон" value={user.phone || '—'} isMonospace />
                   <Field label="Заметка" value={user.note || '—'} />
+                  {accessError ? <Field label="Доступы" value="ошибка" /> : null}
+                  {!accessError ? (
+                    <Field
+                      label="Доступы"
+                      value={
+                        access?.items?.length
+                          ? access.items
+                            .map((x) => `${x.accessRole}: ${x.projectId}${x.regionCodes?.length ? ` · ${x.regionCodes.join(', ')}` : ''}`)
+                            .join('; ')
+                          : '—'
+                      }
+                    />
+                  ) : null}
+                  {pointsAccessError ? <Field label="Локации" value="ошибка" /> : null}
+                  {!pointsAccessError ? (
+                    <Field
+                      label="Локации"
+                      value={pointsAccess?.pointIds?.length ? `Точек: ${pointsAccess.pointIds.length}` : '—'}
+                    />
+                  ) : null}
                   {password ? <Field label="Временный пароль" value={password} isMonospace /> : null}
                 </div>
               ) : (

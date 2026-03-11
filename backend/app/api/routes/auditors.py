@@ -28,6 +28,9 @@ from app.schemas.auditors import (
 
 router = APIRouter()
 
+def _company_id (current_user: User) -> UUID:
+  return getattr(current_user, 'active_company_id', current_user.company_id)
+
 
 def _ensure_admin (user: User) -> None:
   if user.role != UserRole.admin:
@@ -174,7 +177,7 @@ async def list_auditors (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> AuditorsResponse:
-  stmt = select(Auditor).where(Auditor.company_id == current_user.company_id).order_by(Auditor.created_at.desc())
+  stmt = select(Auditor).where(Auditor.company_id == _company_id(current_user)).order_by(Auditor.created_at.desc())
 
   if q:
     like = f'%{q.strip()}%'
@@ -219,11 +222,11 @@ async def create_auditor (
   if not email and not phone:
     raise HTTPException(status_code=400, detail='Укажите телефон или почту')
 
-  if await _exists_duplicate(db, current_user.company_id, email, phone):
+  if await _exists_duplicate(db, _company_id(current_user), email, phone):
     raise HTTPException(status_code=400, detail='Аудитор с такими контактами уже существует')
 
   auditor = Auditor(
-    company_id=current_user.company_id,
+    company_id=_company_id(current_user),
     last_name=payload.lastName.strip(),
     first_name=payload.firstName.strip(),
     middle_name=payload.middleName.strip() if payload.middleName else None,
@@ -255,7 +258,7 @@ async def update_auditor (
 ) -> AuditorUpdateResponse:
   _ensure_admin(current_user)
 
-  res = await db.execute(select(Auditor).where(Auditor.id == auditor_id, Auditor.company_id == current_user.company_id))
+  res = await db.execute(select(Auditor).where(Auditor.id == auditor_id, Auditor.company_id == _company_id(current_user)))
   auditor = res.scalar_one_or_none()
   if auditor is None:
     raise HTTPException(status_code=404, detail='Аудитор не найден')
@@ -265,7 +268,7 @@ async def update_auditor (
   if not email and not phone:
     raise HTTPException(status_code=400, detail='Укажите телефон или почту')
 
-  if await _exists_duplicate_excluding(db, current_user.company_id, auditor.id, email, phone):
+  if await _exists_duplicate_excluding(db, _company_id(current_user), auditor.id, email, phone):
     raise HTTPException(status_code=400, detail='Аудитор с такими контактами уже существует')
 
   auditor.last_name = payload.lastName.strip()
@@ -298,7 +301,7 @@ async def set_auditor_password (
 ) -> None:
   _ensure_admin(current_user)
 
-  res = await db.execute(select(Auditor).where(Auditor.id == auditor_id, Auditor.company_id == current_user.company_id))
+  res = await db.execute(select(Auditor).where(Auditor.id == auditor_id, Auditor.company_id == _company_id(current_user)))
   auditor = res.scalar_one_or_none()
   if auditor is None:
     raise HTTPException(status_code=404, detail='Аудитор не найден')
@@ -321,7 +324,7 @@ async def delete_auditor (
 ) -> None:
   _ensure_admin(current_user)
 
-  res = await db.execute(select(Auditor).where(Auditor.id == auditor_id, Auditor.company_id == current_user.company_id))
+  res = await db.execute(select(Auditor).where(Auditor.id == auditor_id, Auditor.company_id == _company_id(current_user)))
   auditor = res.scalar_one_or_none()
   if auditor is None:
     raise HTTPException(status_code=404, detail='Аудитор не найден')
@@ -411,12 +414,12 @@ async def import_auditors (
       continue
     seen_keys.add(key)
 
-    if await _exists_duplicate(db, current_user.company_id, email, phone):
+    if await _exists_duplicate(db, _company_id(current_user), email, phone):
       skipped += 1
       continue
 
     auditor = Auditor(
-      company_id=current_user.company_id,
+      company_id=_company_id(current_user),
       last_name=last_name,
       first_name=first_name,
       middle_name=middle_name,

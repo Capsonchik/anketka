@@ -47,3 +47,39 @@ export type TeamUsersImportResponse = {
   errors?: TeamUsersImportError[]
 }
 
+export type UserProjectAccessItem = {
+  projectId: string
+  accessRole: 'controller' | 'coordinator'
+  regionCodes: string[]
+}
+
+export type UserProjectAccessResponse = {
+  userId: string
+  items: UserProjectAccessItem[]
+}
+
+export type UserProjectAccessReplaceRequest = {
+  items: UserProjectAccessItem[]
+}
+
+export type BulkAssignRequest = {
+  userIds: string[]
+  projectId: string
+  accessRole: 'controller' | 'coordinator'
+  regionCodes: string[]
+}
+
+export type BulkAssignResponse = {
+  updatedUsers: number
+}
+
+export type UserPointAccessResponse = {
+  userId: string
+  projectId: string | null
+  pointIds: string[]
+}
+
+export type UserPointAccessReplaceRequest = {
+  pointIds: string[]
+}
+

@@ -15,8 +15,11 @@ import type { CreateUserResponse, MeResponse, TeamUser, TeamUserDetailsResponse,
 import type { TeamAuditorsTabHandle } from './TeamAuditorsTab'
 import { TeamAuditorsTab } from './TeamAuditorsTab'
 import { TeamCreateUserModal, type CreateUserFormState } from './TeamCreateUserModal'
+import { TeamBulkAccessModal } from './TeamBulkAccessModal'
 import { TeamTabs, type TeamTabKey } from './TeamTabs'
+import { TeamUserAccessModal } from './TeamUserAccessModal'
 import { TeamUserDetailsModal } from './TeamUserDetailsModal'
+import { TeamUserLocationsModal } from './TeamUserLocationsModal'
 import { TeamUsersImportModal } from './TeamUsersImportModal'
 import { TeamUsersTab } from './TeamUsersTab'
 import styles from './TeamPage.module.css'
@@ -54,6 +57,11 @@ export function TeamPage () {
   const [details, setDetails] = useState<TeamUserDetailsResponse | null>(null)
   const [detailsMode, setDetailsMode] = useState<'view' | 'edit'>('view')
   const [isUsersImportOpen, setIsUsersImportOpen] = useState(false)
+  const [accessUserId, setAccessUserId] = useState<string | null>(null)
+  const [isAccessOpen, setIsAccessOpen] = useState(false)
+  const [isBulkAccessOpen, setIsBulkAccessOpen] = useState(false)
+  const [locationsUserId, setLocationsUserId] = useState<string | null>(null)
+  const [isLocationsOpen, setIsLocationsOpen] = useState(false)
 
   const auditorsRef = useRef<TeamAuditorsTabHandle | null>(null)
 
@@ -249,6 +257,11 @@ export function TeamPage () {
       <div className={styles.headerRow}>
         <h1 className="titleH1">Команда</h1>
         <div className={styles.headerActions}>
+          {tab === 'users' && (myRole === 'admin' || myRole === 'manager') ? (
+            <button type="button" className={styles.headerTextButton} onClick={() => setIsBulkAccessOpen(true)}>
+              Назначения
+            </button>
+          ) : null}
           {tab === 'users' && myRole === 'admin' ? (
             <button type="button" className={styles.headerTextButton} onClick={() => setIsUsersImportOpen(true)}>
               Импорт Excel
@@ -313,9 +326,18 @@ export function TeamPage () {
               onSearchChange={setSearch}
               onRoleFilterChange={setRoleFilter}
               isAdmin={myRole === 'admin'}
+              canManageAccess={myRole === 'admin' || myRole === 'manager'}
               canEditUser={(u) => canEditTeamUser(myRole, u.role)}
               onOpenDetails={(userId) => openDetails(userId, 'view')}
               onEdit={(userId) => openDetails(userId, 'edit')}
+              onAccess={(userId) => {
+                setAccessUserId(userId)
+                setIsAccessOpen(true)
+              }}
+              onLocations={(userId) => {
+                setLocationsUserId(userId)
+                setIsLocationsOpen(true)
+              }}
               onDelete={deleteUser}
             />
           </>
@@ -336,6 +358,34 @@ export function TeamPage () {
         onModeChange={setDetailsMode}
         onSave={updateUser}
         onDelete={deleteUser}
+      />
+
+      <TeamUserAccessModal
+        open={isAccessOpen}
+        userId={accessUserId}
+        canEdit={myRole === 'admin' || myRole === 'manager'}
+        onClose={() => {
+          setIsAccessOpen(false)
+          setAccessUserId(null)
+        }}
+      />
+
+      <TeamUserLocationsModal
+        open={isLocationsOpen}
+        userId={locationsUserId}
+        canEdit={myRole === 'admin' || myRole === 'manager'}
+        onClose={() => {
+          setIsLocationsOpen(false)
+          setLocationsUserId(null)
+        }}
+      />
+
+      <TeamBulkAccessModal
+        open={isBulkAccessOpen}
+        onClose={() => setIsBulkAccessOpen(false)}
+        users={users}
+        canEdit={myRole === 'admin' || myRole === 'manager'}
+        onDone={() => loadUsers()}
       />
 
       <TeamCreateUserModal

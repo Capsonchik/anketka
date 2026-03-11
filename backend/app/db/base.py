@@ -5,6 +5,7 @@ from app.db.base_class import Base
 from app.models.checklist import Checklist  # noqa: E402,F401
 from app.models.checklist_item import ChecklistItem  # noqa: E402,F401
 from app.models.company import Company  # noqa: E402,F401
+from app.models.company_settings import CompanySettings  # noqa: E402,F401
 from app.models.project import Project  # noqa: E402,F401
 from app.models.refresh_token import RefreshToken  # noqa: E402,F401
 from app.models.ref_brand import RefBrand  # noqa: E402,F401
@@ -25,4 +26,7 @@ from app.models.survey_question_option import SurveyQuestionOption  # noqa: E402
 from app.models.survey_invite import SurveyInvite  # noqa: E402,F401
 from app.models.survey_attempt import SurveyAttempt  # noqa: E402,F401
 from app.models.user import User  # noqa: E402,F401
+from app.models.owner_company_access import OwnerCompanyAccess  # noqa: E402,F401
+from app.models.user_project_access import UserProjectAccess  # noqa: E402,F401
+from app.models.user_point_access import UserPointAccess  # noqa: E402,F401
 

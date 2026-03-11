@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Button, DatePicker, Input, Modal, Radio, RadioGroup, SelectPicker } from 'rsuite'
 
@@ -47,15 +47,16 @@ export function ProjectCreateModal ({
   const [selectedProjectType, setSelectedProjectType] = useState<'priceMonitoring' | 'mysteryShopper' | null>(null)
   const [step, setStep] = useState<'selectType' | 'details'>('selectType')
 
-  useEffect(() => {
-    if (open) {
-      setSelectedProjectType(null)
-      setStep('selectType')
-    }
-  }, [open])
-
   return (
-    <Modal open={open} onClose={onClose} size="lg">
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="lg"
+      onEntered={() => {
+        setSelectedProjectType(null)
+        setStep('selectType')
+      }}
+    >
       <Modal.Header>
         <Modal.Title>Новый проект</Modal.Title>
       </Modal.Header>

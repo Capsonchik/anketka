@@ -35,13 +35,16 @@ from app.schemas.surveys import (
 
 router = APIRouter()
 
+def _company_id (current_user: User) -> UUID:
+  return getattr(current_user, 'active_company_id', current_user.company_id)
+
 
 def to_survey_item (s: Survey) -> SurveyItem:
   return SurveyItem(id=s.id, title=s.title, category=s.category, templateKey=s.template_key, createdAt=s.created_at)
 
 
 async def _get_survey_or_404 (db: AsyncSession, current_user: User, survey_id: UUID) -> Survey:
-  res = await db.execute(select(Survey).where(Survey.id == survey_id, Survey.company_id == current_user.company_id))
+  res = await db.execute(select(Survey).where(Survey.id == survey_id, Survey.company_id == _company_id(current_user)))
   survey = res.scalar_one_or_none()
   if survey is None:
     raise HTTPException(status_code=404, detail='Анкета не найдена')
@@ -77,7 +80,7 @@ async def list_surveys (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> SurveysResponse:
-  stmt = select(Survey).where(Survey.company_id == current_user.company_id).order_by(Survey.created_at.desc())
+  stmt = select(Survey).where(Survey.company_id == _company_id(current_user)).order_by(Survey.created_at.desc())
   if q:
     like = f'%{q.strip()}%'
     stmt = stmt.where(Survey.title.ilike(like))
@@ -182,7 +185,7 @@ async def list_survey_projects (
   res = await db.execute(
     select(Project, ProjectSurvey.attached_at)
     .join(ProjectSurvey, ProjectSurvey.project_id == Project.id)
-    .where(ProjectSurvey.survey_id == survey_id, Project.company_id == current_user.company_id)
+    .where(ProjectSurvey.survey_id == survey_id, Project.company_id == _company_id(current_user))
     .order_by(ProjectSurvey.attached_at.desc()),
   )
 
@@ -285,12 +288,12 @@ async def create_survey (
 ) -> SurveyCreateResponse:
   title = payload.title.strip()
   exists = await db.execute(
-    select(Survey.id).where(Survey.company_id == current_user.company_id, func.lower(Survey.title) == title.lower()),
+    select(Survey.id).where(Survey.company_id == _company_id(current_user), func.lower(Survey.title) == title.lower()),
   )
   if exists.scalar_one_or_none() is not None:
     raise HTTPException(status_code=400, detail='Анкета с таким названием уже существует')
 
-  survey = Survey(company_id=current_user.company_id, title=title, category=payload.category)
+  survey = Survey(company_id=_company_id(current_user), title=title, category=payload.category)
   db.add(survey)
   await db.commit()
 
@@ -318,7 +321,7 @@ async def apply_survey_template (
   try:
     # Одна транзакция на запрос уже начата сессией; используем явный lock + commit.
     locked_res = await db.execute(
-      select(Survey).where(Survey.id == survey_id, Survey.company_id == current_user.company_id).with_for_update(),
+      select(Survey).where(Survey.id == survey_id, Survey.company_id == _company_id(current_user)).with_for_update(),
     )
     locked = locked_res.scalar_one_or_none()
     if locked is None:
@@ -592,7 +595,8 @@ async def update_survey (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> SurveyUpdateResponse:
-  res = await db.execute(select(Survey).where(Survey.id == survey_id, Survey.company_id == current_user.company_id))
+  company_id = _company_id(current_user)
+  res = await db.execute(select(Survey).where(Survey.id == survey_id, Survey.company_id == company_id))
   survey = res.scalar_one_or_none()
   if survey is None:
     raise HTTPException(status_code=404, detail='Анкета не найдена')
@@ -600,7 +604,7 @@ async def update_survey (
   title = payload.title.strip()
   exists = await db.execute(
     select(Survey.id).where(
-      Survey.company_id == current_user.company_id,
+      Survey.company_id == company_id,
       func.lower(Survey.title) == title.lower(),
       Survey.id != survey.id,
     ),
@@ -628,7 +632,8 @@ async def delete_survey (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> None:
-  res = await db.execute(select(Survey).where(Survey.id == survey_id, Survey.company_id == current_user.company_id))
+  company_id = _company_id(current_user)
+  res = await db.execute(select(Survey).where(Survey.id == survey_id, Survey.company_id == company_id))
   survey = res.scalar_one_or_none()
   if survey is None:
     raise HTTPException(status_code=404, detail='Анкета не найдена')

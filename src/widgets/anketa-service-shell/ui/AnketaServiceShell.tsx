@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 import styles from './AnketaServiceShell.module.css'
+import { ClientSwitcher } from './ClientSwitcher'
 import { ProfileInfo } from './ProfileInfo'
 
 const menuItems = [
+  { href: '/clients', label: 'Клиенты', shortLabel: 'Кл' },
   { href: '/team', label: 'Команда', shortLabel: 'К' },
   { href: '/dashboard', label: 'Дашборд', shortLabel: 'Д' },
   { href: '/projects', label: 'Проекты', shortLabel: 'П' },
@@ -27,6 +29,7 @@ export function AnketaServiceShell ({ children }: { children: React.ReactNode })
           <div className={styles.avatar} aria-hidden="true" />
           <div className={styles.profileText}>
             <ProfileInfo nameClassName={styles.profileName} metaClassName={styles.profileMeta} />
+            {!isSidebarCollapsed ? <ClientSwitcher /> : null}
           </div>
         </div>
 

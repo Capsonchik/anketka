@@ -2,6 +2,7 @@ export enum ROUTES {
   auth = 'auth',
   users = 'users',
   team = 'team',
+  clients = 'clients',
   projects = 'projects',
   surveys = 'surveys',
   auditors = 'auditors',
@@ -22,6 +23,17 @@ export const apiRoutes = {
   },
   team: {
     users: `${ROUTES.team}/users`,
+    userProjectAccess: (userId: string) => `${ROUTES.team}/users/${userId}/project-access`,
+    userPointAccess: (userId: string) => `${ROUTES.team}/users/${userId}/point-access`,
+    bulkProjectAccess: `${ROUTES.team}/users/project-access/bulk`,
+  },
+  clients: {
+    clients: `${ROUTES.clients}`,
+    client: (clientId: string) => `${ROUTES.clients}/${clientId}`,
+    logo: (clientId: string) => `${ROUTES.clients}/${clientId}/logo`,
+    background: (clientId: string) => `${ROUTES.clients}/${clientId}/background`,
+    apUpload: (clientId: string) => `${ROUTES.clients}/${clientId}/ap/upload`,
+    usersImport: (clientId: string) => `${ROUTES.clients}/${clientId}/users/import`,
   },
   projects: {
     projects: `${ROUTES.projects}`,

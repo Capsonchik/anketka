@@ -29,6 +29,7 @@ from app.models.project_survey import ProjectSurvey
 from app.models.auditor import Auditor
 from app.models.project_survey_auditor import ProjectSurveyAuditor
 from app.models.user import User
+from app.models.user_project_access import UserProjectAccess
 from app.models.user_role import UserRole
 from app.schemas.projects import (
   AddressbookCloneRequest,
@@ -74,6 +75,9 @@ from app.schemas.surveys import SurveyInviteItem, SurveyInviteResponse
 
 
 router = APIRouter()
+
+def _company_id (current_user: User) -> UUID:
+  return getattr(current_user, 'active_company_id', current_user.company_id)
 
 
 def to_project_item (project: Project) -> ProjectItem:
@@ -362,11 +366,21 @@ async def _get_project_or_404 (db: AsyncSession, current_user: User, project_id:
   res = await db.execute(
     select(Project)
     .options(selectinload(Project.manager))
-    .where(Project.id == project_id, Project.company_id == current_user.company_id),
+    .where(Project.id == project_id, Project.company_id == _company_id(current_user)),
   )
   project = res.scalar_one_or_none()
   if project is None:
     raise HTTPException(status_code=404, detail='Проект не найден')
+
+  if current_user.role in (UserRole.controller, UserRole.coordinator):
+    access_res = await db.execute(
+      select(UserProjectAccess.id).where(
+        UserProjectAccess.user_id == current_user.id,
+        UserProjectAccess.project_id == project_id,
+      ).limit(1),
+    )
+    if access_res.scalar_one_or_none() is None:
+      raise HTTPException(status_code=403, detail='Недостаточно прав')
   return project
 
 
@@ -468,12 +482,25 @@ async def list_projects (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> ProjectsResponse:
+  company_id = _company_id(current_user)
   stmt = (
     select(Project)
     .options(selectinload(Project.manager))
-    .where(Project.company_id == current_user.company_id)
+    .where(Project.company_id == company_id)
     .order_by(Project.created_at.desc())
   )
+
+  if current_user.role in (UserRole.controller, UserRole.coordinator):
+    access_res = await db.execute(
+      select(UserProjectAccess.project_id)
+      .join(Project, Project.id == UserProjectAccess.project_id)
+      .where(UserProjectAccess.user_id == current_user.id, Project.company_id == company_id),
+    )
+    allowed = list(dict.fromkeys(access_res.scalars().all()))
+    if not allowed:
+      return ProjectsResponse(items=[])
+    stmt = stmt.where(Project.id.in_(allowed))
+
   if q:
     like = f'%{q.strip()}%'
     stmt = stmt.where(Project.name.ilike(like))
@@ -493,6 +520,22 @@ async def get_project (
   current_user: User = Depends(get_current_user),
 ) -> ProjectResponse:
   project = await _get_project_or_404(db, current_user, project_id)
+
+  if current_user.role in (UserRole.controller, UserRole.coordinator):
+    company_id = _company_id(current_user)
+    access_res = await db.execute(
+      select(UserProjectAccess.id)
+      .join(Project, Project.id == UserProjectAccess.project_id)
+      .where(
+        UserProjectAccess.user_id == current_user.id,
+        UserProjectAccess.project_id == project_id,
+        Project.company_id == company_id,
+      )
+      .limit(1),
+    )
+    if access_res.scalar_one_or_none() is None:
+      raise HTTPException(status_code=403, detail='Недостаточно прав')
+
   return ProjectResponse(project=to_project_item(project))
 
 @router.delete(
@@ -509,7 +552,7 @@ async def delete_project (
   if current_user.role != UserRole.admin:
     raise HTTPException(status_code=403, detail='Недостаточно прав')
 
-  res = await db.execute(select(Project).where(Project.id == project_id, Project.company_id == current_user.company_id))
+  res = await db.execute(select(Project).where(Project.id == project_id, Project.company_id == _company_id(current_user)))
   project = res.scalar_one_or_none()
   if project is None:
     raise HTTPException(status_code=404, detail='Проект не найден')
@@ -537,7 +580,7 @@ async def create_project (
   manager_res = await db.execute(
     select(User).where(
       User.id == payload.managerId,
-      User.company_id == current_user.company_id,
+      User.company_id == _company_id(current_user),
     ),
   )
   manager = manager_res.scalar_one_or_none()
@@ -545,7 +588,7 @@ async def create_project (
     raise HTTPException(status_code=400, detail='Выбранный менеджер не найден в вашей компании')
 
   project = Project(
-    company_id=current_user.company_id,
+    company_id=_company_id(current_user),
     manager_user_id=payload.managerId,
     name=payload.name.strip(),
     comment=payload.comment.strip() if payload.comment else None,
@@ -558,7 +601,7 @@ async def create_project (
   res = await db.execute(
     select(Project)
     .options(selectinload(Project.manager))
-    .where(Project.id == project.id, Project.company_id == current_user.company_id),
+    .where(Project.id == project.id, Project.company_id == _company_id(current_user)),
   )
   project = res.scalar_one()
   return CreateProjectResponse(project=to_project_item(project))
@@ -620,7 +663,7 @@ async def create_addressbook_point (
   resolver = _AddressbookRefResolver(db)
   region_code, city_name = await resolver.resolve(payload.city, payload.region)
 
-  chain = await _get_or_create_chain(db, current_user.company_id, payload.chainName)
+  chain = await _get_or_create_chain(db, _company_id(current_user), payload.chainName)
 
   desired = _norm_optional(payload.code)
   if desired:
@@ -675,7 +718,7 @@ async def update_addressbook_point (
 
   resolver = _AddressbookRefResolver(db)
   region_code, city_name = await resolver.resolve(payload.city, payload.region)
-  chain = await _get_or_create_chain(db, current_user.company_id, payload.chainName)
+  chain = await _get_or_create_chain(db, _company_id(current_user), payload.chainName)
 
   desired = _norm_optional(payload.code)
   if desired and desired != point.code:
@@ -777,7 +820,7 @@ async def upload_addressbook (
       if not code:
         continue
 
-    chain = await _get_or_create_chain(db, current_user.company_id, chain_name)
+    chain = await _get_or_create_chain(db, _company_id(current_user), chain_name)
 
     existing_res = await db.execute(
       select(ShopPoint).where(ShopPoint.project_id == project_id, ShopPoint.code == code),
@@ -820,13 +863,13 @@ async def clone_addressbook (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> None:
-  res = await db.execute(select(Project).where(Project.id == project_id, Project.company_id == current_user.company_id))
+  res = await db.execute(select(Project).where(Project.id == project_id, Project.company_id == _company_id(current_user)))
   target = res.scalar_one_or_none()
   if target is None:
     raise HTTPException(status_code=404, detail='Проект не найден')
 
   src_res = await db.execute(
-    select(Project).where(Project.id == payload.sourceProjectId, Project.company_id == current_user.company_id),
+    select(Project).where(Project.id == payload.sourceProjectId, Project.company_id == _company_id(current_user)),
   )
   source = src_res.scalar_one_or_none()
   if source is None:
@@ -1055,10 +1098,11 @@ async def list_project_surveys (
   current_user: User = Depends(get_current_user),
 ) -> ProjectSurveysResponse:
   await _get_project_or_404(db, current_user, project_id)
+  company_id = _company_id(current_user)
   res = await db.execute(
     select(Survey)
     .join(ProjectSurvey, ProjectSurvey.survey_id == Survey.id)
-    .where(ProjectSurvey.project_id == project_id, Survey.company_id == current_user.company_id)
+    .where(ProjectSurvey.project_id == project_id, Survey.company_id == company_id)
     .order_by(ProjectSurvey.attached_at.desc()),
   )
   return ProjectSurveysResponse(items=[to_survey_item(x) for x in res.scalars().all()])
@@ -1077,7 +1121,7 @@ async def attach_project_survey (
 ) -> None:
   await _get_project_or_404(db, current_user, project_id)
 
-  sres = await db.execute(select(Survey).where(Survey.id == payload.surveyId, Survey.company_id == current_user.company_id))
+  sres = await db.execute(select(Survey).where(Survey.id == payload.surveyId, Survey.company_id == _company_id(current_user)))
   survey = sres.scalar_one_or_none()
   if survey is None:
     raise HTTPException(status_code=404, detail='Анкета не найдена')
@@ -1108,7 +1152,7 @@ async def detach_project_survey (
   await _get_project_or_404(db, current_user, project_id)
 
   # Проверим, что анкета принадлежит компании (чтобы не отдавать existence по чужим id)
-  sres = await db.execute(select(Survey.id).where(Survey.id == survey_id, Survey.company_id == current_user.company_id))
+  sres = await db.execute(select(Survey.id).where(Survey.id == survey_id, Survey.company_id == _company_id(current_user)))
   if sres.scalar_one_or_none() is None:
     raise HTTPException(status_code=404, detail='Анкета не найдена')
 
@@ -1149,7 +1193,7 @@ async def list_project_survey_auditors (
     .where(
       ProjectSurveyAuditor.project_id == project_id,
       ProjectSurveyAuditor.survey_id == survey_id,
-      Auditor.company_id == current_user.company_id,
+      Auditor.company_id == _company_id(current_user),
     )
     .order_by(ProjectSurveyAuditor.assigned_at.desc(), Auditor.last_name.asc(), Auditor.first_name.asc()),
   )
@@ -1198,7 +1242,7 @@ async def assign_project_survey_auditors (
     return None
 
   # только аудиторы своей компании
-  existing_auditors = await db.execute(select(Auditor.id).where(Auditor.company_id == current_user.company_id, Auditor.id.in_(auditor_ids)))
+  existing_auditors = await db.execute(select(Auditor.id).where(Auditor.company_id == _company_id(current_user), Auditor.id.in_(auditor_ids)))
   allowed_ids = set(existing_auditors.scalars().all())
   if not allowed_ids:
     raise HTTPException(status_code=400, detail='Аудиторы не найдены')
@@ -1398,7 +1442,7 @@ async def create_auditor_invite (
     raise HTTPException(status_code=404, detail='Аудитор не назначен на эту анкету')
 
   # аудитора проверяем, чтобы не светить existence чужих id
-  aud_res = await db.execute(select(Auditor.id).where(Auditor.id == auditor_id, Auditor.company_id == current_user.company_id))
+  aud_res = await db.execute(select(Auditor.id).where(Auditor.id == auditor_id, Auditor.company_id == _company_id(current_user)))
   if aud_res.scalar_one_or_none() is None:
     raise HTTPException(status_code=404, detail='Аудитор не найден')
 
@@ -1455,7 +1499,7 @@ async def upload_checklist (
   base_title = os.path.splitext(os.path.basename(file.filename or 'checklist'))[0] or 'checklist'
 
   for store_name, store_rows in grouped.items():
-    chain = await _get_or_create_chain(db, current_user.company_id, store_name)
+    chain = await _get_or_create_chain(db, _company_id(current_user), store_name)
     title = await _make_unique_checklist_title(db, project_id, chain.id, base_title)
 
     checklist = Checklist(project_id=project_id, chain_id=chain.id, title=title)
@@ -1473,8 +1517,8 @@ async def upload_checklist (
       if not category_name or not brand_name or not product_name:
         continue
 
-      category = await _get_or_create_category(db, current_user.company_id, category_name)
-      brand = await _get_or_create_brand(db, current_user.company_id, brand_name)
+      category = await _get_or_create_category(db, _company_id(current_user), category_name)
+      brand = await _get_or_create_brand(db, _company_id(current_user), brand_name)
       product = await _get_or_create_product(db, brand.id, article, product_name.strip(), size)
 
       item = ChecklistItem(checklist_id=checklist.id, category_id=category.id, product_id=product.id, sort_order=sort_order)
@@ -1567,8 +1611,8 @@ async def create_checklist_item (
   if cl_res.scalar_one_or_none() is None:
     raise HTTPException(status_code=404, detail='Чек-лист не найден')
 
-  category = await _get_or_create_category(db, current_user.company_id, payload.category)
-  brand = await _get_or_create_brand(db, current_user.company_id, payload.brand)
+  category = await _get_or_create_category(db, _company_id(current_user), payload.category)
+  brand = await _get_or_create_brand(db, _company_id(current_user), payload.brand)
   product = await _get_or_create_product(
     db,
     brand.id,
@@ -1640,8 +1684,8 @@ async def update_checklist_item (
   if item is None:
     raise HTTPException(status_code=404, detail='Строка не найдена')
 
-  category = await _get_or_create_category(db, current_user.company_id, payload.category)
-  brand = await _get_or_create_brand(db, current_user.company_id, payload.brand)
+  category = await _get_or_create_category(db, _company_id(current_user), payload.category)
+  brand = await _get_or_create_brand(db, _company_id(current_user), payload.brand)
   product = await _get_or_create_product(
     db,
     brand.id,

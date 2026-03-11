@@ -47,9 +47,11 @@ export async function downloadApiFile ({
           .map((d) => {
             if (typeof d === 'string') return d
             if (d && typeof d === 'object') {
-              const msg = (d as any).msg
-              const loc = (d as any).loc
-              return msg ? `${msg}${loc ? ` (${String(loc)})` : ''}` : JSON.stringify(d)
+              const obj = d as Record<string, unknown>
+              const msg = typeof obj.msg === 'string' ? obj.msg : null
+              const locRaw = obj.loc
+              const loc = Array.isArray(locRaw) ? locRaw.map(String).join('.') : (locRaw ? String(locRaw) : null)
+              return msg ? `${msg}${loc ? ` (${loc})` : ''}` : JSON.stringify(d)
             }
             return String(d)
           })

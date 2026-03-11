@@ -17,6 +17,7 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models.company import Company
+from app.models.owner_company_access import OwnerCompanyAccess
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.models.user_role import UserRole
@@ -104,6 +105,7 @@ async def register (payload: RegisterRequest, db: AsyncSession = Depends(get_db)
   user = User(
     first_name=payload.firstName,
     last_name=payload.lastName,
+    platform_role='owner',
     role=UserRole.admin,
     company_id=company.id,
     email=str(payload.email),
@@ -112,6 +114,8 @@ async def register (payload: RegisterRequest, db: AsyncSession = Depends(get_db)
   )
   db.add(user)
   await db.flush()
+
+  db.add(OwnerCompanyAccess(owner_user_id=user.id, company_id=company.id))
 
   tokens, refresh_token, jti = _tokens_for_user(user)
   await _persist_refresh_token(db=db, user_id=user.id, refresh_token=refresh_token, jti=jti)

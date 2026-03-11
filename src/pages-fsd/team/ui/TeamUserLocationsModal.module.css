@@ -1,0 +1,75 @@
+.hint {
+  font-size: 13px;
+  color: var(--textMuted, #6b7280);
+  margin-bottom: 10px;
+}
+
+.error {
+  font-size: 13px;
+  color: #b91c1c;
+  margin-bottom: 10px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 1fr 260px auto auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.tableWrap {
+  max-height: 380px;
+  overflow: auto;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.th,
+.td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  vertical-align: top;
+}
+
+.th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  font-weight: 600;
+  z-index: 1;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.pointTitle {
+  display: grid;
+  gap: 2px;
+}
+
+.pointSub {
+  color: var(--textMuted, #6b7280);
+  font-size: 12px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.counter {
+  font-size: 12px;
+  color: var(--textMuted, #6b7280);
+}
+

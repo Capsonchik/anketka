@@ -19,6 +19,9 @@ class User(Base):
   first_name: Mapped[str] = mapped_column(String(120))
   last_name: Mapped[str] = mapped_column(String(120))
 
+  # platform-level role (outside company/workspace roles)
+  platform_role: Mapped[str] = mapped_column(String(20), server_default='user')
+
   role: Mapped[UserRole] = mapped_column(
     Enum(UserRole, name='user_role', schema=settings.users_schema),
     server_default=UserRole.admin.value,
