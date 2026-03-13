@@ -126,9 +126,7 @@ async def list_clients (
     archived_cond = CompanySettings.is_archived.is_(False) | (CompanySettings.company_id.is_(None))  # type: ignore
     stmt = (
       select(Company, CompanySettings)
-      .join(OwnerCompanyAccess, OwnerCompanyAccess.company_id == Company.id)
       .outerjoin(CompanySettings, CompanySettings.company_id == Company.id)
-      .where(OwnerCompanyAccess.owner_user_id == current_user.id)
       .order_by(Company.created_at.desc())
     )
     if not includeArchived:

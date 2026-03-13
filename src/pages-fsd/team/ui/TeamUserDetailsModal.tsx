@@ -936,9 +936,6 @@ export function TeamUserDetailsModal ({
         <div className={styles.footerActions}>
           {actualMode === 'view' ? (
             <>
-              <IconButton label="Закрыть" onClick={onClose} disabled={isLoading}>
-                <Image src="/icons/close.svg" alt="" width={16} height={16} aria-hidden="true" />
-              </IconButton>
               {user && canEdit ? (
                 <IconButton label="Изменить" onClick={() => onModeChange('edit')} disabled={isLoading}>
                   <Image src="/icons/edit.svg" alt="" width={16} height={16} aria-hidden="true" />
