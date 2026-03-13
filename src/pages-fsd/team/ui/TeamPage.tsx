@@ -19,7 +19,7 @@ import { TeamCreateUserModal, type CreateUserFormState } from './TeamCreateUserM
 import { TeamBulkAccessModal } from './TeamBulkAccessModal'
 import { TeamTabs, type TeamTabKey } from './TeamTabs'
 import { TeamUserAccessModal } from './TeamUserAccessModal'
-import { TeamUserDetailsModal } from './TeamUserDetailsModal'
+import { TeamUserModal } from './TeamUserModal/TeamUserModal'
 import { TeamUserLocationsModal } from './TeamUserLocationsModal'
 import { TeamUsersImportModal } from './TeamUsersImportModal'
 import type { TeamGroupsTabHandle } from './TeamGroupsTab'
@@ -474,7 +474,7 @@ export function TeamPage () {
         <TeamAuditorsTab ref={auditorsRef} isAdmin={myRole === 'admin'} />
       )}
 
-      <TeamUserDetailsModal
+      <TeamUserModal
         open={isDetailsOpen}
         onClose={() => setIsDetailsOpen(false)}
         isLoading={detailsLoading}

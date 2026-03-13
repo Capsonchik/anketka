@@ -1,0 +1,26 @@
+---
+description: Структура UI-блоков по папкам (один блок - одна папка)
+alwaysApply: true
+---
+
+# UI Component Folder Structure
+
+## Базовое правило
+- Любой крупный UI-блок (модалка, панель, сложная таблица, карточка с подчастями) хранится в отдельной папке.
+- Имя папки отражает контекст + сущность + тип блока: `TeamUserModal`, `ProjectSurveyTable`, `AuditorDetailsPanel`.
+
+## Вложенные части блока
+- Все подкомпоненты, табы, локальные хелперы, локальные стили и типы этого блока хранятся внутри его папки.
+- Не раскладывать части одного блока по соседним папкам, если они не переиспользуются вне блока.
+
+## Вынос в shared/entities/features
+- Если часть переиспользуется в нескольких местах, вынести ее из папки блока в соответствующий слой FSD и импортировать через public API.
+- Если часть специфична только этому блоку, оставлять рядом (colocation).
+
+## Пример
+- ✅ `team/ui/TeamUserModal/TeamUserModal.tsx`
+- ✅ `team/ui/TeamUserModal/TeamUserModalRoleTab.tsx`
+- ✅ `team/ui/TeamUserModal/TeamUserModalDistributionTab.tsx`
+- ✅ `team/ui/TeamUserModal/TeamUserModal.module.css`
+- ❌ `TeamUserModal.tsx` в одном файле на 600+ строк
+- ❌ табы модалки разбросаны по разным папкам без переиспользования

@@ -1395,14 +1395,20 @@ async def get_user_companies_access (
   _ensure_admin_or_manager_or_owner(current_user)
   _ensure_perm(current_user, 'users.edit')
   home_company_id = _company_id(current_user)
+  if home_company_id is None:
+    raise HTTPException(status_code=400, detail='Не выбран активный клиент')
   # manage only users from current company (home workspace)
   await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
 
   companies = await _list_manageable_companies(db, actor=current_user)
   ids = [c.id for c, _ in companies]
 
-  res = await db.execute(select(UserCompanyAccess.company_id).where(UserCompanyAccess.user_id == user_id, UserCompanyAccess.company_id.in_(ids)))
-  granted = set(res.scalars().all())
+  granted: set[UUID] = set()
+  if ids:
+    res = await db.execute(
+      select(UserCompanyAccess.company_id).where(UserCompanyAccess.user_id == user_id, UserCompanyAccess.company_id.in_(ids)),
+    )
+    granted = set(res.scalars().all())
 
   items = []
   for c, s in companies:
@@ -1427,6 +1433,8 @@ async def replace_user_companies_access (
   _ensure_admin_or_manager_or_owner(current_user)
   _ensure_perm(current_user, 'users.edit')
   home_company_id = _company_id(current_user)
+  if home_company_id is None:
+    raise HTTPException(status_code=400, detail='Не выбран активный клиент')
   await _ensure_target_user_in_company(db, company_id=home_company_id, user_id=user_id)
 
   companies = await _list_manageable_companies(db, actor=current_user)
