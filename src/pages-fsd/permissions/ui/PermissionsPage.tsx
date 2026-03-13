@@ -138,8 +138,7 @@ export function PermissionsPage () {
           <button
             key={role}
             type="button"
-            className={styles.roleTab}
-            data-active={role === selectedRole ? 'true' : 'false'}
+            className={`${styles.roleTab} ${role === selectedRole ? styles.roleTabActive : ''}`.trim()}
             onClick={() => setSelectedRole(role)}
           >
             {userRoleLabels[role]}
