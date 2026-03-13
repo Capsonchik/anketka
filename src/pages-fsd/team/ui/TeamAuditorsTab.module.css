@@ -1,3 +1,9 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
 .sectionHeader {
   margin-top: 14px;
   display: flex;
@@ -49,8 +55,89 @@
 .filters {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: 1fr 240px;
+  grid-template-columns: 1fr 240px auto;
   gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+.viewToggle {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.resultsArea {
+  flex: 1;
+  min-height: 0;
+}
+
+.resultsAreaCentered {
+  display: grid;
+  place-items: center;
+}
+
+.cardsGrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1200px) {
+  .cardsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .cardsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .cardsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  border-radius: 16px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 12px 30px rgba(18, 46, 90, 0.05);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.cardMain {
+  display: grid;
+  gap: 8px;
+}
+
+.cardName {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(11, 18, 32, 0.92);
+}
+
+.cardContacts {
+  display: grid;
+  gap: 2px;
+}
+
+.cardMeta {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  color: rgba(11, 18, 32, 0.8);
 }
 
 .tableWrap {

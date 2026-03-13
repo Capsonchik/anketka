@@ -86,6 +86,18 @@ export function TeamPage () {
 
   const hasFilters = useMemo(() => search.trim().length > 0 || roleFilter !== 'all', [roleFilter, search])
 
+  function isUuid (value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim())
+  }
+
+  function parsePublicId (value: string): number | null {
+    const normalized = value.trim().replace(/\s+/g, '')
+    if (!normalized || !/^\d+$/.test(normalized)) return null
+    const parsed = Number.parseInt(normalized, 10)
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) return null
+    return parsed
+  }
+
   function closeModal () {
     setIsModalOpen(false)
     setSubmitError(null)
@@ -183,10 +195,6 @@ export function TeamPage () {
 
   const canEditDetails = details?.user ? canEditTeamUser(myRole, details.user.role) : false
 
-  function isUuid (value: string) {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim())
-  }
-
   async function loadUsers (opts?: { q?: string; role?: UserRole | 'all'; companyId?: string | null }) {
     setIsLoading(true)
     setError(null)
@@ -201,7 +209,12 @@ export function TeamPage () {
       if (emailFilter.trim()) params.email = emailFilter.trim()
       if (phoneFilter.trim()) params.phone = phoneFilter.trim()
       if (companyFilter.trim()) params.profile_company = companyFilter.trim()
-      if (idFilter.trim() && isUuid(idFilter.trim())) params.user_id = idFilter.trim()
+      const publicId = parsePublicId(idFilter)
+      if (publicId !== null) {
+        params.public_id = String(publicId)
+      } else if (idFilter.trim() && isUuid(idFilter.trim())) {
+        params.user_id = idFilter.trim()
+      }
 
       const res = await axiosMainRequest.get<TeamUsersResponse>(apiRoutes.team.users, { params })
       const items = res.data.items ?? []
@@ -322,7 +335,12 @@ export function TeamPage () {
       if (emailFilter.trim()) params.email = emailFilter.trim()
       if (phoneFilter.trim()) params.phone = phoneFilter.trim()
       if (companyFilter.trim()) params.profile_company = companyFilter.trim()
-      if (idFilter.trim() && isUuid(idFilter.trim())) params.user_id = idFilter.trim()
+      const publicId = parsePublicId(idFilter)
+      if (publicId !== null) {
+        params.public_id = String(publicId)
+      } else if (idFilter.trim() && isUuid(idFilter.trim())) {
+        params.user_id = idFilter.trim()
+      }
 
       await downloadApiFile({
         url: apiRoutes.team.usersExport,

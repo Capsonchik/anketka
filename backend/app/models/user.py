@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,6 +16,13 @@ class User(Base):
   __table_args__ = {'schema': settings.users_schema}
 
   id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+  public_id: Mapped[int] = mapped_column(
+    BigInteger,
+    unique=True,
+    index=True,
+    nullable=False,
+    server_default=text("nextval('users.app_user_public_id_seq'::regclass)"),
+  )
 
   first_name: Mapped[str] = mapped_column(String(120))
   last_name: Mapped[str] = mapped_column(String(120))

@@ -146,7 +146,7 @@ export function TeamUsersTab ({
           className={styles.input}
           value={idFilter}
           onChange={(value) => onIdFilterChange(String(value ?? ''))}
-          placeholder="ID…"
+          placeholder="ID (например 123456)…"
           aria-label="Фильтр по ID"
         />
         <div className={styles.viewToggle}>

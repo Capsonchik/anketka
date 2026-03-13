@@ -57,7 +57,7 @@ export function TeamUsersTable ({
         <tbody>
           {users.map((u) => (
             <tr key={u.id} className={styles.row} onClick={() => onOpen(u.id)}>
-              <td className={styles.email}>{u.id}</td>
+              <td className={styles.idCell} title={u.id}>{u.publicId}</td>
               <td className={styles.role}>{userRoleLabel(u.role)}</td>
               <td className={styles.email}>{u.email}</td>
               <td className={styles.nameCell}>

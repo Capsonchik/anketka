@@ -9,6 +9,7 @@ from app.schemas.company import CompanyPublic
 
 class TeamUserItem(BaseModel):
   id: UUID
+  publicId: int
   firstName: str
   lastName: str
   email: EmailStr

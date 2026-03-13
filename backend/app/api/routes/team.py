@@ -87,6 +87,7 @@ def to_team_user_item (user: User) -> TeamUserItem:
 
   return TeamUserItem(
     id=user.id,
+    publicId=int(user.public_id),
     firstName=user.first_name,
     lastName=user.last_name,
     email=user.email,
@@ -307,6 +308,7 @@ async def _ensure_target_user_in_company (db: AsyncSession, *, company_id: UUID,
 async def list_users (
   q: str | None = Query(default=None, description='Поиск по имени, фамилии или почте'),
   user_id: UUID | None = Query(default=None, description='Фильтр по ID пользователя'),
+  public_id: int | None = Query(default=None, description='Фильтр по публичному ID пользователя'),
   is_active: bool | None = Query(default=None, description='Фильтр по активности'),
   role: UserRole | None = Query(default=None, description='Фильтр по роли'),
   email: str | None = Query(default=None, description='Фильтр по email'),
@@ -327,6 +329,8 @@ async def list_users (
   )
   if user_id is not None:
     stmt = stmt.where(User.id == user_id)
+  if public_id is not None:
+    stmt = stmt.where(User.public_id == public_id)
   if is_active is not None:
     stmt = stmt.where(User.is_active == is_active)
   if role is not None:
@@ -359,6 +363,7 @@ async def list_users (
 async def export_users_xlsx (
   q: str | None = Query(default=None, description='Поиск по имени, фамилии или почте'),
   user_id: UUID | None = Query(default=None, description='Фильтр по ID пользователя'),
+  public_id: int | None = Query(default=None, description='Фильтр по публичному ID пользователя'),
   is_active: bool | None = Query(default=None, description='Фильтр по активности'),
   role: UserRole | None = Query(default=None, description='Фильтр по роли'),
   email: str | None = Query(default=None, description='Фильтр по email'),
@@ -379,6 +384,8 @@ async def export_users_xlsx (
   )
   if user_id is not None:
     stmt = stmt.where(User.id == user_id)
+  if public_id is not None:
+    stmt = stmt.where(User.public_id == public_id)
   if is_active is not None:
     stmt = stmt.where(User.is_active == is_active)
   if role is not None:
@@ -404,6 +411,7 @@ async def export_users_xlsx (
 
   headers = [
     'ID',
+    'UUID',
     'Имя',
     'Фамилия',
     'Email',
@@ -420,6 +428,7 @@ async def export_users_xlsx (
   for user in users:
     rows.append(
       [
+        int(user.public_id),
         str(user.id),
         user.first_name,
         user.last_name,

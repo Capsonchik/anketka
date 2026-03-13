@@ -2,7 +2,6 @@
 
 import type { ForwardRefExoticComponent, PropsWithoutRef, RefAttributes } from 'react'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import Image from 'next/image'
 import { DatePicker, Input, Modal, SelectPicker } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
@@ -12,6 +11,9 @@ import { PageLoader } from '@/shared/ui'
 
 import { downloadApiFile } from '../lib/downloadApiFile'
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
+import { TeamAuditorCard } from './TeamAuditorCard'
+import { TeamAuditorsTable } from './TeamAuditorsTable'
+import { TeamAuditorsViewToggle, type TeamAuditorsViewMode } from './TeamAuditorsViewToggle'
 import styles from './TeamAuditorsTab.module.css'
 
 type CreateAuditorFormState = {
@@ -56,16 +58,6 @@ function parseIsoDate (value: string | null): Date | null {
   return new Date(y, m - 1, d)
 }
 
-function genderLabel (gender: AuditorGender | null | undefined): string {
-  if (gender === 'male') return 'м'
-  if (gender === 'female') return 'ж'
-  return '—'
-}
-
-function formatName (a: AuditorItem): string {
-  return [a.lastName, a.firstName, a.middleName].filter(Boolean).join(' ')
-}
-
 export type TeamAuditorsTabHandle = {
   openCreate: () => void
   openImport: () => void
@@ -81,6 +73,7 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
 
   const [search, setSearch] = useState('')
   const [city, setCity] = useState('')
+  const [view, setView] = useState<TeamAuditorsViewMode>('cards')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState<CreateAuditorFormState>(initialForm)
@@ -138,6 +131,7 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
 
   const isEmpty = !isLoading && !error && items.length === 0 && !hasFilters
   const isNoResults = !isLoading && !error && items.length === 0 && hasFilters
+  const shouldCenterState = isLoading || ((!error && (isEmpty || isNoResults)))
 
   function openCreate () {
     setCreateError(null)
@@ -324,7 +318,7 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
   }
 
   return (
-    <div>
+    <div className={styles.root}>
       <input
         ref={fileRef}
         className={styles.fileInput}
@@ -346,12 +340,40 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
           placeholder="Поиск по ФИО / телефону / почте…"
         />
         <Input size="sm" value={city} onChange={(v) => setCity(String(v ?? ''))} placeholder="Город…" />
+        <div className={styles.viewToggle}>
+          <TeamAuditorsViewToggle value={view} onChange={setView} />
+        </div>
       </div>
 
-      {isLoading ? <PageLoader centered size="lg" /> : null}
-      {error ? <div className={styles.error}>{error}</div> : null}
-      {isEmpty ? <div className={styles.hintCenter}>Пока нет аудиторов</div> : null}
-      {isNoResults ? <div className={styles.hintCenter}>Ничего не найдено</div> : null}
+      <div className={[styles.resultsArea, shouldCenterState ? styles.resultsAreaCentered : ''].filter(Boolean).join(' ')}>
+        {isLoading ? <PageLoader centered size="lg" /> : null}
+        {error ? <div className={styles.error}>{error}</div> : null}
+        {isEmpty ? <div className={styles.hintCenter}>Пока нет аудиторов</div> : null}
+        {isNoResults ? <div className={styles.hintCenter}>Ничего не найдено</div> : null}
+
+        {!isLoading && !error && !isNoResults && !isEmpty && view === 'cards' ? (
+          <div className={styles.cardsGrid}>
+            {items.map((auditor) => (
+              <TeamAuditorCard
+                key={auditor.id}
+                auditor={auditor}
+                isAdmin={isAdmin}
+                onEdit={() => openEdit(auditor)}
+                onDelete={() => deleteAuditor(auditor.id)}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {!isLoading && !error && !isNoResults && !isEmpty && view !== 'cards' ? (
+          <TeamAuditorsTable
+            items={items}
+            isAdmin={isAdmin}
+            onEdit={openEdit}
+            onDelete={deleteAuditor}
+          />
+        ) : null}
+      </div>
 
       {importError ? <div className={styles.error}>{importError}</div> : null}
       {importResult ? (
@@ -369,65 +391,6 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
               {importResult.errors.length > 50 ? <div className={styles.hint}>Показаны первые 50 ошибок</div> : null}
             </div>
           ) : null}
-        </div>
-      ) : null}
-
-      {!isLoading && items.length ? (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th className={styles.th}>ФИО</th>
-                <th className={styles.th}>Контакты</th>
-                <th className={styles.th}>Город</th>
-                <th className={styles.th}>Дата рождения</th>
-                <th className={styles.th}>Пол</th>
-                <th className={styles.th} />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((a) => (
-                <tr key={a.id}>
-                  <td className={styles.td}>{formatName(a)}</td>
-                  <td className={styles.td}>
-                    <div className={styles.mono}>{a.phone ?? '—'}</div>
-                    <div className={styles.mono}>{a.email ?? '—'}</div>
-                  </td>
-                  <td className={styles.td}>{a.city}</td>
-                  <td className={styles.td}>
-                    <span className={styles.mono}>{a.birthDate ?? '—'}</span>
-                  </td>
-                  <td className={styles.td}>
-                    <span className={styles.mono}>{genderLabel(a.gender)}</span>
-                  </td>
-                  <td className={styles.td}>
-                    <div className={styles.rowActions}>
-                      <button
-                        type="button"
-                        className={styles.iconButton}
-                        disabled={!isAdmin}
-                        onClick={() => openEdit(a)}
-                        aria-label="Редактировать"
-                        title="Редактировать"
-                      >
-                      <Image src="/icons/edit.svg" alt="" width={16} height={16} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        className={`${styles.iconButton} ${styles.iconButtonDanger}`.trim()}
-                        disabled={!isAdmin}
-                        onClick={() => deleteAuditor(a.id)}
-                        aria-label="Удалить"
-                        title="Удалить"
-                      >
-                      <Image src="/icons/trash.svg" alt="" width={16} height={16} aria-hidden="true" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       ) : null}
 

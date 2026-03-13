@@ -2,6 +2,7 @@ import type { UserRole } from '@/entities/user'
 
 export type TeamUser = {
   id: string
+  publicId: number
   firstName: string
   lastName: string
   email: string
