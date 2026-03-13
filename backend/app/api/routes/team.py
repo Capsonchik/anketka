@@ -1,13 +1,15 @@
 import secrets
 from datetime import datetime, timezone
 from io import BytesIO
+import io
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from app.api.deps import get_current_user
 from app.core.security import hash_password
@@ -249,6 +251,18 @@ def _normalize_access_role (value: str) -> str:
   return v
 
 
+def _xlsx_bytes_from_rows (headers: list[str], rows: list[list[object | None]]) -> bytes:
+  wb = Workbook(write_only=True)
+  ws = wb.create_sheet(title='Sheet1')
+  ws.append(headers)
+  for row in rows:
+    ws.append([('' if value is None else value) for value in row])
+
+  buf = io.BytesIO()
+  wb.save(buf)
+  return buf.getvalue()
+
+
 async def _ensure_project_manage_access (
   db: AsyncSession,
   *,
@@ -335,6 +349,98 @@ async def list_users (
   res = await db.execute(stmt)
   users = res.scalars().all()
   return TeamUsersResponse(items=[to_team_user_item(u) for u in users])
+
+
+@router.get(
+  '/users/export',
+  summary='Экспорт участников в Excel (.xlsx)',
+)
+async def export_users_xlsx (
+  q: str | None = Query(default=None, description='Поиск по имени, фамилии или почте'),
+  user_id: UUID | None = Query(default=None, description='Фильтр по ID пользователя'),
+  is_active: bool | None = Query(default=None, description='Фильтр по активности'),
+  role: UserRole | None = Query(default=None, description='Фильтр по роли'),
+  email: str | None = Query(default=None, description='Фильтр по email'),
+  phone: str | None = Query(default=None, description='Фильтр по телефону'),
+  profile_company: str | None = Query(default=None, description='Фильтр по компании (профиль)'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+  _ensure_admin_or_manager_or_owner(current_user)
+  _ensure_perm(current_user, 'data.export')
+  company_id = _company_id(current_user)
+
+  stmt = (
+    select(User)
+    .options(selectinload(User.company))
+    .where(User.company_id == company_id)
+    .order_by(User.created_at.desc())
+  )
+  if user_id is not None:
+    stmt = stmt.where(User.id == user_id)
+  if is_active is not None:
+    stmt = stmt.where(User.is_active == is_active)
+  if role is not None:
+    stmt = stmt.where(User.role == role)
+  if email:
+    stmt = stmt.where(User.email.ilike(f'%{email.strip()}%'))
+  if phone:
+    stmt = stmt.where(User.phone.ilike(f'%{phone.strip()}%'))
+  if profile_company:
+    stmt = stmt.where(User.profile_company.ilike(f'%{profile_company.strip()}%'))
+  if q:
+    like = f'%{q.strip()}%'
+    stmt = stmt.where(
+      or_(
+        User.first_name.ilike(like),
+        User.last_name.ilike(like),
+        User.email.ilike(like),
+      ),
+    )
+
+  res = await db.execute(stmt)
+  users = res.scalars().all()
+
+  headers = [
+    'ID',
+    'Имя',
+    'Фамилия',
+    'Email',
+    'Телефон',
+    'Компания',
+    'Роль',
+    'Компания (профиль)',
+    'Язык интерфейса',
+    'Активен',
+    'Дата создания',
+    'Последний вход',
+  ]
+  rows: list[list[object | None]] = []
+  for user in users:
+    rows.append(
+      [
+        str(user.id),
+        user.first_name,
+        user.last_name,
+        user.email,
+        user.phone,
+        user.company.name if user.company is not None else None,
+        user.role.value if hasattr(user.role, 'value') else str(user.role),
+        user.profile_company,
+        user.ui_language,
+        bool(user.is_active),
+        user.created_at.isoformat() if user.created_at else None,
+        user.last_login_at.isoformat() if user.last_login_at else None,
+      ],
+    )
+
+  content = _xlsx_bytes_from_rows(headers, rows)
+  filename = f'team-users-{company_id}.xlsx'
+  return StreamingResponse(
+    io.BytesIO(content),
+    media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+  )
 
 
 @router.post(

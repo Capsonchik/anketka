@@ -9,6 +9,7 @@ import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import type { AuditorCreateRequest, AuditorImportResponse, AuditorItem, AuditorGender, AuditorsResponse } from '@/entities/auditor'
 
+import { downloadApiFile } from '../lib/downloadApiFile'
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
 import styles from './TeamAuditorsTab.module.css'
 
@@ -67,6 +68,7 @@ function formatName (a: AuditorItem): string {
 export type TeamAuditorsTabHandle = {
   openCreate: () => void
   openImport: () => void
+  exportXlsx: () => Promise<void>
 }
 
 export const TeamAuditorsTab: ForwardRefExoticComponent<
@@ -150,7 +152,26 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
     setIsImportOpen(true)
   }
 
-  useImperativeHandle(ref, () => ({ openCreate, openImport }), [isAdmin])
+  async function exportXlsx () {
+    if (!isAdmin) return
+    setError(null)
+    try {
+      const q = search.trim()
+      const c = city.trim()
+      await downloadApiFile({
+        url: apiRoutes.auditors.export,
+        params: {
+          q: q || undefined,
+          city: c || undefined,
+        },
+        fallbackFilename: 'auditors.xlsx',
+      })
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err))
+    }
+  }
+
+  useImperativeHandle(ref, () => ({ openCreate, openImport, exportXlsx }), [isAdmin, search, city])
 
   function openEdit (a: AuditorItem) {
     setEditError(null)

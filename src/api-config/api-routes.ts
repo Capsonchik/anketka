@@ -23,6 +23,7 @@ export const apiRoutes = {
   },
   team: {
     users: `${ROUTES.team}/users`,
+    usersExport: `${ROUTES.team}/users/export`,
     userProjectAccess: (userId: string) => `${ROUTES.team}/users/${userId}/project-access`,
     userPointAccess: (userId: string) => `${ROUTES.team}/users/${userId}/point-access`,
     userResetPassword: (userId: string) => `${ROUTES.team}/users/${userId}/password/reset`,
@@ -87,6 +88,7 @@ export const apiRoutes = {
   },
   auditors: {
     auditors: `${ROUTES.auditors}`,
+    export: `${ROUTES.auditors}/export`,
     auditor: (auditorId: string) => `${ROUTES.auditors}/${auditorId}`,
     import: `${ROUTES.auditors}/import`,
     password: (auditorId: string) => `${ROUTES.auditors}/${auditorId}/password`,

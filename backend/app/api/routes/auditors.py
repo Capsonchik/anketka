@@ -3,6 +3,8 @@ from datetime import date, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -110,6 +112,18 @@ def to_auditor_item (a: Auditor) -> AuditorItem:
   )
 
 
+def _xlsx_bytes_from_rows (headers: list[str], rows: list[list[object | None]]) -> bytes:
+  wb = Workbook(write_only=True)
+  ws = wb.create_sheet(title='Sheet1')
+  ws.append(headers)
+  for row in rows:
+    ws.append([('' if value is None else value) for value in row])
+
+  buf = io.BytesIO()
+  wb.save(buf)
+  return buf.getvalue()
+
+
 async def _exists_duplicate (
   db: AsyncSession,
   company_id: UUID,
@@ -201,6 +215,73 @@ async def list_auditors (
 
   res = await db.execute(stmt)
   return AuditorsResponse(items=[to_auditor_item(a) for a in res.scalars().all()])
+
+
+@router.get(
+  '/export',
+  summary='Экспорт аудиторов в Excel (.xlsx)',
+)
+async def export_auditors (
+  q: str | None = Query(default=None, description='Поиск по ФИО, почте или телефону'),
+  city: str | None = Query(default=None, description='Фильтр по городу'),
+  gender: AuditorGender | None = Query(default=None, description='Фильтр по полу'),
+  birthDateFrom: date | None = Query(default=None, description='Дата рождения от'),
+  birthDateTo: date | None = Query(default=None, description='Дата рождения до'),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+  _ensure_admin(current_user)
+
+  stmt = select(Auditor).where(Auditor.company_id == _company_id(current_user)).order_by(Auditor.created_at.desc())
+
+  if q:
+    like = f'%{q.strip()}%'
+    stmt = stmt.where(
+      or_(
+        Auditor.first_name.ilike(like),
+        Auditor.last_name.ilike(like),
+        func.coalesce(Auditor.middle_name, '').ilike(like),
+        func.coalesce(Auditor.email, '').ilike(like),
+        func.coalesce(Auditor.phone, '').ilike(like),
+      ),
+    )
+  if city:
+    stmt = stmt.where(func.lower(Auditor.city) == city.strip().lower())
+  if gender:
+    stmt = stmt.where(Auditor.gender == gender)
+  if birthDateFrom is not None:
+    stmt = stmt.where(Auditor.birth_date >= birthDateFrom)
+  if birthDateTo is not None:
+    stmt = stmt.where(Auditor.birth_date <= birthDateTo)
+
+  res = await db.execute(stmt)
+  items = res.scalars().all()
+
+  headers = ['ID', 'Фамилия', 'Имя', 'Отчество', 'Телефон', 'Email', 'Город', 'Дата рождения', 'Пол', 'Дата создания']
+  rows: list[list[object | None]] = []
+  for auditor in items:
+    rows.append(
+      [
+        str(auditor.id),
+        auditor.last_name,
+        auditor.first_name,
+        auditor.middle_name,
+        auditor.phone,
+        auditor.email,
+        auditor.city,
+        auditor.birth_date.isoformat() if auditor.birth_date else None,
+        auditor.gender,
+        auditor.created_at.isoformat() if auditor.created_at else None,
+      ],
+    )
+
+  content = _xlsx_bytes_from_rows(headers, rows)
+  filename = f'auditors-{_company_id(current_user)}.xlsx'
+  return StreamingResponse(
+    io.BytesIO(content),
+    media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+  )
 
 
 @router.post(

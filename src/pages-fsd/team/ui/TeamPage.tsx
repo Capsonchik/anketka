@@ -9,6 +9,7 @@ import type { UserRole } from '@/entities/user'
 import { Button } from '@/shared/ui'
 
 import { canEditTeamUser } from '../lib/canEditTeamUser'
+import { downloadApiFile } from '../lib/downloadApiFile'
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
 import { normalizeEmail, normalizePhone } from '../lib/normalizeContact'
 import type { CreateUserResponse, TeamUser, TeamUserDetailsResponse, TeamUsersResponse } from '../model/types'
@@ -69,6 +70,8 @@ export function TeamPage () {
   const [details, setDetails] = useState<TeamUserDetailsResponse | null>(null)
   const [detailsMode, setDetailsMode] = useState<'view' | 'edit'>('view')
   const [isUsersImportOpen, setIsUsersImportOpen] = useState(false)
+  const [isUsersExporting, setIsUsersExporting] = useState(false)
+  const [isAuditorsExporting, setIsAuditorsExporting] = useState(false)
   const [accessUserId, setAccessUserId] = useState<string | null>(null)
   const [isAccessOpen, setIsAccessOpen] = useState(false)
   const [isBulkAccessOpen, setIsBulkAccessOpen] = useState(false)
@@ -308,6 +311,40 @@ export function TeamPage () {
     }
   }
 
+  async function exportUsersXlsx () {
+    setError(null)
+    setIsUsersExporting(true)
+    try {
+      const params: Record<string, string | undefined> = {}
+      if (search.trim()) params.q = search.trim()
+      if (roleFilter !== 'all') params.role = roleFilter
+      if (activeFilter !== 'all') params.is_active = activeFilter === 'active' ? 'true' : 'false'
+      if (emailFilter.trim()) params.email = emailFilter.trim()
+      if (phoneFilter.trim()) params.phone = phoneFilter.trim()
+      if (companyFilter.trim()) params.profile_company = companyFilter.trim()
+      if (idFilter.trim() && isUuid(idFilter.trim())) params.user_id = idFilter.trim()
+
+      await downloadApiFile({
+        url: apiRoutes.team.usersExport,
+        params,
+        fallbackFilename: 'team-users.xlsx',
+      })
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err))
+    } finally {
+      setIsUsersExporting(false)
+    }
+  }
+
+  async function exportAuditorsXlsx () {
+    setIsAuditorsExporting(true)
+    try {
+      await auditorsRef.current?.exportXlsx()
+    } finally {
+      setIsAuditorsExporting(false)
+    }
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.headerRow}>
@@ -321,6 +358,11 @@ export function TeamPage () {
           {tab === 'users' && (myRole === 'admin' || myRole === 'manager') ? (
             <button type="button" className={styles.headerTextButton} onClick={() => setIsUsersImportOpen(true)}>
               Импорт Excel
+            </button>
+          ) : null}
+          {tab === 'users' && (myRole === 'admin' || myRole === 'manager') ? (
+            <button type="button" className={styles.headerTextButton} disabled={isUsersExporting} onClick={exportUsersXlsx}>
+              {isUsersExporting ? 'Экспорт…' : 'Экспорт Excel'}
             </button>
           ) : null}
 
@@ -343,6 +385,11 @@ export function TeamPage () {
           {tab === 'auditors' && myRole === 'admin' ? (
             <button type="button" className={styles.headerTextButton} onClick={() => auditorsRef.current?.openImport()}>
               Импорт Excel
+            </button>
+          ) : null}
+          {tab === 'auditors' && myRole === 'admin' ? (
+            <button type="button" className={styles.headerTextButton} disabled={isAuditorsExporting} onClick={exportAuditorsXlsx}>
+              {isAuditorsExporting ? 'Экспорт…' : 'Экспорт Excel'}
             </button>
           ) : null}
 
