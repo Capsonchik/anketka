@@ -39,6 +39,7 @@ export const apiRoutes = {
     userCompanyReports: (userId: string, companyId: string) => `${ROUTES.team}/users/${userId}/reports/${companyId}`,
     userClone: (userId: string) => `${ROUTES.team}/users/${userId}/clone`,
     bulkProjectAccess: `${ROUTES.team}/users/project-access/bulk`,
+    roleDefaultPermissions: `${ROUTES.team}/role-default-permissions`,
   },
   clients: {
     clients: `${ROUTES.clients}`,

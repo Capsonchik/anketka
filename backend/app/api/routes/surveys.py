@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_page_permission
 from app.db.session import get_db
 from app.models.project_survey import ProjectSurvey
 from app.models.project import Project
@@ -33,7 +33,7 @@ from app.schemas.surveys import (
 )
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_page_permission('page.survey-builder.view'))])
 
 def _company_id (current_user: User) -> UUID:
   return getattr(current_user, 'active_company_id', current_user.company_id)

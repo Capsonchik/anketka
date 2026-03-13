@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Callable
 from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException, status
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.security import decode_token
+from app.core.permissions import BASE_DEFAULT_PERMISSIONS_BY_ROLE
 from app.db.session import get_db
 from app.models.auditor import Auditor
 from app.models.owner_company_access import OwnerCompanyAccess
@@ -131,4 +133,26 @@ async def get_current_auditor (
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Auditor not found')
 
   return auditor
+
+
+def _effective_permissions (user: User) -> set[str]:
+  permissions = {str(x or '').strip() for x in list(user.permissions or []) if str(x or '').strip()}
+  has_page_permissions = any(p.startswith('page.') for p in permissions)
+  if not has_page_permissions:
+    permissions.update(BASE_DEFAULT_PERMISSIONS_BY_ROLE.get(user.role, []))
+  return permissions
+
+
+def ensure_user_permission (user: User, key: str) -> None:
+  if (user.platform_role or 'user') == 'owner':
+    return
+  if key in _effective_permissions(user):
+    return
+  raise HTTPException(status_code=403, detail='Недостаточно прав')
+
+
+def require_page_permission (key: str) -> Callable:
+  async def _dep (current_user: User = Depends(get_current_user)) -> None:
+    ensure_user_permission(current_user, key)
+  return _dep
 

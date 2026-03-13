@@ -87,3 +87,17 @@ class TeamUsersImportResponse(BaseModel):
   skipped: int
   errors: list[TeamUsersImportError] | None = None
 
+
+class PermissionItem(BaseModel):
+  key: str
+  label: str
+
+
+class RoleDefaultPermissionsResponse(BaseModel):
+  byRole: dict[UserRole, list[str]]
+  availablePermissions: list[PermissionItem]
+
+
+class RoleDefaultPermissionsUpdateRequest(BaseModel):
+  byRole: dict[UserRole, list[str]]
+

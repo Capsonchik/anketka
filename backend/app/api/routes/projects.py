@@ -11,7 +11,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_page_permission
 from app.db.session import get_db
 from app.models.checklist import Checklist
 from app.models.checklist_item import ChecklistItem
@@ -74,7 +74,7 @@ from app.schemas.surveys import ProjectSurveyAttachRequest, ProjectSurveysRespon
 from app.schemas.surveys import SurveyInviteItem, SurveyInviteResponse
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_page_permission('page.projects.view'))])
 
 def _company_id (current_user: User) -> UUID:
   return getattr(current_user, 'active_company_id', current_user.company_id)

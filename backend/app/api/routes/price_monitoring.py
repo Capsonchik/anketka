@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import String, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_page_permission
 from app.db.session import get_db
 from app.models.auditor import Auditor
 from app.models.project import Project
@@ -37,7 +37,7 @@ from app.schemas.price_monitoring import (
 from app.schemas.surveys import SurveyBuilderResponse, SurveyPageItem, SurveyQuestionItem, SurveyQuestionOptionItem
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_page_permission('page.price-monitoring.view'))])
 
 def _scope_filter_for_user (
   *,

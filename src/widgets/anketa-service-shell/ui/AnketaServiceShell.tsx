@@ -3,24 +3,23 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
+import { hasUserPermission } from '@/entities/user'
+import { useBootstrapData } from '@/shared/lib/bootstrap-data'
+
+import { serviceMenuItems } from '../model/service-menu'
 import styles from './AnketaServiceShell.module.css'
 import { ClientSwitcher } from './ClientSwitcher'
 import { ProfileInfo } from './ProfileInfo'
 
-const menuItems = [
-  { href: '/clients', label: 'Клиенты', shortLabel: 'Кл' },
-  { href: '/team', label: 'Команда', shortLabel: 'К' },
-  { href: '/dashboard', label: 'Дашборд', shortLabel: 'Д' },
-  { href: '/projects', label: 'Проекты', shortLabel: 'П' },
-  { href: '/price-monitoring', label: 'Ценовой мониторинг', shortLabel: 'Ц' },
-  { href: '/survey-builder', label: 'Конструктор анкет', shortLabel: 'А' },
-  { href: '/reports', label: 'Отчет по анкетам', shortLabel: 'О' },
-] as const
-
 export function AnketaServiceShell ({ children }: { children: React.ReactNode }) {
+  const { me } = useBootstrapData()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   const sidebarState = useMemo(() => (isSidebarCollapsed ? 'collapsed' : 'expanded'), [isSidebarCollapsed])
+  const visibleMenuItems = useMemo(
+    () => serviceMenuItems.filter((item) => hasUserPermission(me, item.permissionKey)),
+    [me],
+  )
 
   return (
     <div className={styles.shell} data-sidebar={sidebarState}>
@@ -35,7 +34,7 @@ export function AnketaServiceShell ({ children }: { children: React.ReactNode })
         <ClientSwitcher collapsed={isSidebarCollapsed} />
 
         <nav className={styles.nav}>
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             <Link key={item.href} href={item.href} className={styles.navLink}>
               <span className={styles.navLinkText}>
                 {isSidebarCollapsed ? item.shortLabel : item.label}

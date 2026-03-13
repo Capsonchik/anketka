@@ -12,6 +12,8 @@ type Me = {
   firstName: string
   lastName: string
   role: UserRole
+  platformRole: string
+  permissions: string[]
   company: { id: string; name: string } | null
 }
 

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from PIL import Image, ImageOps
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_page_permission
 from app.api.routes.projects import _AddressbookRefResolver, _make_autocode, _make_unique_point_code, _lower_key, _norm_optional, _read_tabular_file  # type: ignore
 from app.core.security import hash_password
 from app.db.session import get_db
@@ -38,7 +38,7 @@ from app.schemas.clients import (
 from app.api.routes.projects import _get_or_create_chain  # type: ignore
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_page_permission('page.clients.view'))])
 
 
 def _ensure_owner (user: User) -> None:

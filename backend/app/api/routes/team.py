@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from openpyxl import Workbook, load_workbook
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_page_permission
+from app.core.permissions import BASE_DEFAULT_PERMISSIONS_BY_ROLE, PERMISSIONS, PERMISSION_KEYS
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.models.project import Project
@@ -46,6 +47,9 @@ from app.schemas.team import (
   TeamUpdateUserRequest,
   TeamUserDetailsResponse,
   TeamUserItem,
+  PermissionItem,
+  RoleDefaultPermissionsResponse,
+  RoleDefaultPermissionsUpdateRequest,
   TeamUsersImportError,
   TeamUsersImportResponse,
   TeamUsersResponse,
@@ -75,7 +79,7 @@ from app.schemas.reports_access import ReplaceUserCompanyReportsRequest, UserCom
 from app.schemas.user_clone import CloneUserRequest, CloneUserResponse
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_page_permission('page.team.view'))])
 
 
 def to_team_user_item (user: User) -> TeamUserItem:
@@ -104,64 +108,12 @@ def to_team_user_item (user: User) -> TeamUserItem:
   )
 
 
-PERMISSIONS: list[tuple[str, str]] = [
-  ('media.audio.view', 'Видеть аудио'),
-  ('media.photo.view', 'Видеть фото'),
-  ('media.video.view', 'Видеть видео'),
-  ('checks.create', 'Создавать проверки'),
-  ('checks.appeal', 'Апеллировать'),
-  ('notifications.enabled', 'Получать уведомления'),
-  ('checks.edit', 'Редактировать проверки'),
-  ('users.edit', 'Редактировать профили пользователей'),
-  ('notifications.send', 'Отправлять уведомления'),
-  ('notifications.inbox', 'Видеть уведомления'),
-  ('data.export', 'Экспорт'),
-  ('data.import', 'Импорт'),
-  ('tp.fio.view', 'Видеть ФИО ТП'),
-  ('survey.pdf.view', 'Видеть PDF анкеты'),
-  ('checks.price.view', 'Видеть цену проверки'),
-]
-
-PERMISSION_KEYS = {k for k, _ in PERMISSIONS}
-
-DEFAULT_PERMISSIONS_BY_ROLE: dict[UserRole, list[str]] = {
-  UserRole.admin: [k for k, _ in PERMISSIONS],
-  UserRole.manager: [k for k, _ in PERMISSIONS],
-  UserRole.controller: [
-    'media.audio.view',
-    'media.photo.view',
-    'media.video.view',
-    'checks.appeal',
-    'notifications.enabled',
-    'notifications.inbox',
-    'checks.edit',
-    'data.export',
-    'survey.pdf.view',
-    'checks.price.view',
-  ],
-  UserRole.coordinator: [
-    'media.audio.view',
-    'media.photo.view',
-    'media.video.view',
-    'checks.appeal',
-    'notifications.enabled',
-    'notifications.inbox',
-    'checks.edit',
-    'data.export',
-    'survey.pdf.view',
-    'checks.price.view',
-  ],
-  UserRole.client: [
-    'media.photo.view',
-    'survey.pdf.view',
-    'notifications.inbox',
-  ],
-}
+ROLE_PERMISSIONS_THEME_KEY = 'roleDefaultPermissions'
 
 
-def _normalize_permissions (values: list[str] | None, *, role: UserRole) -> list[str]:
+def _normalize_permissions (values: list[str] | None, *, role: UserRole, defaults_by_role: dict[UserRole, list[str]]) -> list[str]:
   if not values:
-    return list(DEFAULT_PERMISSIONS_BY_ROLE.get(role, []))
+    return list(defaults_by_role.get(role, []))
 
   out: list[str] = []
   seen: set[str] = set()
@@ -175,6 +127,14 @@ def _normalize_permissions (values: list[str] | None, *, role: UserRole) -> list
       seen.add(k)
       out.append(k)
   return out
+
+
+def _ensure_admin_or_owner (user: User) -> None:
+  if (user.platform_role or 'user') == 'owner':
+    return
+  if user.role == UserRole.admin:
+    return
+  raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
 
 ROLE_LEVEL: dict[UserRole, int] = {
@@ -227,6 +187,37 @@ def _ensure_perm (user: User, key: str) -> None:
 
 def _company_id (current_user: User) -> UUID:
   return getattr(current_user, 'active_company_id', current_user.company_id)
+
+
+def _merge_role_defaults_from_theme (theme: dict | None) -> dict[UserRole, list[str]]:
+  out: dict[UserRole, list[str]] = {role: list(items) for role, items in BASE_DEFAULT_PERMISSIONS_BY_ROLE.items()}
+  if not isinstance(theme, dict):
+    return out
+  raw = theme.get(ROLE_PERMISSIONS_THEME_KEY)
+  if not isinstance(raw, dict):
+    return out
+
+  for role in UserRole:
+    role_values = raw.get(role.value)
+    if not isinstance(role_values, list):
+      continue
+    out[role] = _normalize_permissions(role_values, role=role, defaults_by_role=out)
+  return out
+
+
+def _serialize_role_defaults (by_role: dict[UserRole, list[str]]) -> dict[str, list[str]]:
+  out: dict[str, list[str]] = {}
+  for role in UserRole:
+    out[role.value] = list(by_role.get(role, []))
+  return out
+
+
+async def _get_company_role_defaults (db: AsyncSession, *, company_id: UUID) -> tuple[CompanySettings | None, dict[UserRole, list[str]]]:
+  res = await db.execute(select(CompanySettings).where(CompanySettings.company_id == company_id))
+  settings = res.scalar_one_or_none()
+  theme = (settings.theme or {}) if settings is not None else {}
+  by_role = _merge_role_defaults_from_theme(theme)
+  return settings, by_role
 
 
 def _normalize_region_codes (codes: list[str]) -> list[str]:
@@ -453,6 +444,66 @@ async def export_users_xlsx (
   )
 
 
+@router.get(
+  '/role-default-permissions',
+  response_model=RoleDefaultPermissionsResponse,
+  summary='Дефолтные права ролей',
+)
+async def get_role_default_permissions (
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> RoleDefaultPermissionsResponse:
+  _ensure_admin_or_owner(current_user)
+  _, by_role = await _get_company_role_defaults(db, company_id=_company_id(current_user))
+  return RoleDefaultPermissionsResponse(
+    byRole=by_role,
+    availablePermissions=[PermissionItem(key=key, label=label) for key, label in PERMISSIONS],
+  )
+
+
+@router.put(
+  '/role-default-permissions',
+  response_model=RoleDefaultPermissionsResponse,
+  summary='Обновить дефолтные права ролей',
+)
+async def update_role_default_permissions (
+  payload: RoleDefaultPermissionsUpdateRequest,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> RoleDefaultPermissionsResponse:
+  _ensure_admin_or_owner(current_user)
+  company_id = _company_id(current_user)
+  settings, _ = await _get_company_role_defaults(db, company_id=company_id)
+
+  normalized: dict[UserRole, list[str]] = {}
+  for role in UserRole:
+    incoming = payload.byRole.get(role, payload.byRole.get(role.value, []))  # type: ignore[arg-type]
+    role_permissions = _normalize_permissions(
+      incoming,
+      role=role,
+      defaults_by_role=BASE_DEFAULT_PERMISSIONS_BY_ROLE,
+    )
+    if role == UserRole.admin:
+      for forced_key in ('page.team.view', 'page.permissions.view', 'users.edit'):
+        if forced_key not in role_permissions:
+          role_permissions.append(forced_key)
+    normalized[role] = role_permissions
+
+  if settings is None:
+    settings = CompanySettings(company_id=company_id, theme={})
+    db.add(settings)
+
+  next_theme = dict(settings.theme or {})
+  next_theme[ROLE_PERMISSIONS_THEME_KEY] = _serialize_role_defaults(normalized)
+  settings.theme = next_theme
+  await db.commit()
+
+  return RoleDefaultPermissionsResponse(
+    byRole=normalized,
+    availablePermissions=[PermissionItem(key=key, label=label) for key, label in PERMISSIONS],
+  )
+
+
 @router.post(
   '/users',
   response_model=TeamCreateUserResponse,
@@ -473,6 +524,8 @@ async def create_user (
   if existing.scalar_one_or_none() is not None:
     raise HTTPException(status_code=400, detail='Пользователь с такой почтой уже существует')
 
+  _, role_defaults = await _get_company_role_defaults(db, company_id=_company_id(current_user))
+
   temporary_password = (payload.password or '').strip()
   if not temporary_password:
     temporary_password = secrets.token_urlsafe(9)
@@ -491,7 +544,7 @@ async def create_user (
     company_id=getattr(current_user, 'active_company_id', current_user.company_id),
     temporary_password=temporary_password,
     password_hash=hash_password(temporary_password),
-    permissions=_normalize_permissions(payload.permissions, role=payload.role),
+    permissions=_normalize_permissions(payload.permissions, role=payload.role, defaults_by_role=role_defaults),
   )
   db.add(user)
   await db.commit()
@@ -548,6 +601,7 @@ async def update_user (
     raise HTTPException(status_code=404, detail='Пользователь не найден')
 
   _ensure_can_manage_user(current_user, target_role=user.role)
+  _, role_defaults = await _get_company_role_defaults(db, company_id=company_id)
 
   if payload.role is not None:
     _ensure_can_manage_user(current_user, target_role=payload.role)
@@ -587,7 +641,7 @@ async def update_user (
   if payload.isActive is not None:
     user.is_active = payload.isActive
   if payload.permissions is not None:
-    user.permissions = _normalize_permissions(payload.permissions, role=(payload.role or user.role))
+    user.permissions = _normalize_permissions(payload.permissions, role=(payload.role or user.role), defaults_by_role=role_defaults)
 
   password_out = None
   if payload.password is not None:

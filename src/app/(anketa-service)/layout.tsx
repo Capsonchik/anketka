@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { RequireAuthNoSSR } from '@/app/providers'
+import { RequireAuthNoSSR, RequirePageAccess } from '@/app/providers'
 import { BootstrapDataProvider } from '@/shared/lib/bootstrap-data'
 import { AnketaServiceShell } from '@/widgets/anketa-service-shell'
 
@@ -17,7 +17,9 @@ export default function AnketaServiceLayout ({
   return (
     <RequireAuthNoSSR>
       <BootstrapDataProvider>
-        <AnketaServiceShell>{children}</AnketaServiceShell>
+        <RequirePageAccess>
+          <AnketaServiceShell>{children}</AnketaServiceShell>
+        </RequirePageAccess>
       </BootstrapDataProvider>
     </RequireAuthNoSSR>
   )

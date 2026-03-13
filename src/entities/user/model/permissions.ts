@@ -1,6 +1,14 @@
 import type { UserRole } from './roles'
 
 export const userPermissions: Array<{ key: string; label: string }> = [
+  { key: 'page.clients.view', label: 'Видеть страницу Клиенты' },
+  { key: 'page.team.view', label: 'Видеть страницу Команда' },
+  { key: 'page.dashboard.view', label: 'Видеть страницу Дашборд' },
+  { key: 'page.projects.view', label: 'Видеть страницу Проекты' },
+  { key: 'page.price-monitoring.view', label: 'Видеть страницу Ценовой мониторинг' },
+  { key: 'page.survey-builder.view', label: 'Видеть страницу Конструктор анкет' },
+  { key: 'page.reports.view', label: 'Видеть страницу Отчет по анкетам' },
+  { key: 'page.permissions.view', label: 'Видеть страницу Разрешения' },
   { key: 'media.audio.view', label: 'Видеть аудио' },
   { key: 'media.photo.view', label: 'Видеть фото' },
   { key: 'media.video.view', label: 'Видеть видео' },
@@ -26,8 +34,12 @@ export function userPermissionLabel (key: string) {
 
 export const userDefaultPermissionsByRole: Record<UserRole, string[]> = {
   admin: userPermissions.map((x) => x.key),
-  manager: userPermissions.map((x) => x.key),
+  manager: userPermissions.filter((x) => x.key !== 'page.permissions.view').map((x) => x.key),
   controller: [
+    'page.dashboard.view',
+    'page.projects.view',
+    'page.price-monitoring.view',
+    'page.reports.view',
     'media.audio.view',
     'media.photo.view',
     'media.video.view',
@@ -40,6 +52,12 @@ export const userDefaultPermissionsByRole: Record<UserRole, string[]> = {
     'checks.price.view',
   ],
   coordinator: [
+    'page.team.view',
+    'page.dashboard.view',
+    'page.projects.view',
+    'page.price-monitoring.view',
+    'page.survey-builder.view',
+    'page.reports.view',
     'media.audio.view',
     'media.photo.view',
     'media.video.view',
@@ -51,5 +69,5 @@ export const userDefaultPermissionsByRole: Record<UserRole, string[]> = {
     'survey.pdf.view',
     'checks.price.view',
   ],
-  client: ['media.photo.view', 'survey.pdf.view', 'notifications.inbox'],
+  client: ['page.dashboard.view', 'page.reports.view', 'media.photo.view', 'survey.pdf.view', 'notifications.inbox'],
 }
