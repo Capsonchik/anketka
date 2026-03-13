@@ -75,6 +75,7 @@ export function TeamUsersTab ({
   canAdd: boolean
 }) {
   const [view, setView] = useState<TeamUsersViewMode>('cards')
+  const shouldCenterState = isLoading || ((!error && (isNoResults || isEmpty)))
 
   return (
     <div className={styles.root}>
@@ -153,7 +154,7 @@ export function TeamUsersTab ({
         </div>
       </div>
 
-      <div className={styles.resultsArea}>
+      <div className={[styles.resultsArea, shouldCenterState ? styles.resultsAreaCentered : ''].filter(Boolean).join(' ')}>
         {isLoading ? <PageLoader centered size="lg" /> : null}
         {error ? <div className={styles.error}>{error}</div> : null}
         {(isNoResults || isEmpty) && !isLoading && !error ? (

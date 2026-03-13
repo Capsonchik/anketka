@@ -43,6 +43,7 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  align-items: start;
 }
 
 @media (max-width: 1280px) {
@@ -74,13 +75,16 @@
   justify-items: center;
   align-items: center;
   gap: 10px;
-  place-content: center;
-  min-height: 100%;
 }
 
 .resultsArea {
   flex: 1;
+  height: 100%;
   min-height: 0;
+}
+
+.resultsAreaCentered {
   display: grid;
+  place-items: center;
 }
 
