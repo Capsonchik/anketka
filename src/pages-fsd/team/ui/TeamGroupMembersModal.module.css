@@ -23,6 +23,11 @@
   flex: 1;
 }
 
+.pickerWrap {
+  width: 100%;
+  max-width: 560px;
+}
+
 .footer {
   display: flex;
   justify-content: space-between;
@@ -57,5 +62,40 @@
 
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.selectedList {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.selectedTag {
+  border: 1px solid rgba(10, 30, 60, 0.12);
+  background: rgba(66, 170, 255, 0.08);
+  color: rgba(10, 30, 60, 0.92);
+  border-radius: 999px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.selectedTag:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.selectedTagText {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.selectedTagClose {
+  font-size: 14px;
+  line-height: 1;
 }
 

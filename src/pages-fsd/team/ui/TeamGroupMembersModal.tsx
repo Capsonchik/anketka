@@ -61,6 +61,11 @@ export function TeamGroupMembersModal ({
     [users],
   )
 
+  const selectedUsers = useMemo(() => {
+    const byId = new Map(users.map((u) => [u.id, u]))
+    return userIds.map((id) => byId.get(id)).filter(Boolean) as TeamUser[]
+  }, [userIds, users])
+
   useEffect(() => {
     if (!open || !groupId) return
     let isAlive = true
@@ -165,18 +170,40 @@ export function TeamGroupMembersModal ({
         </div>
 
         <div className={styles.row}>
-          <div className={styles.grow}>
+          <div className={styles.pickerWrap}>
             <div className={styles.hint} style={{ marginBottom: 6 }}>Выберите участников</div>
             <CheckPicker
               data={options}
               value={userIds}
               onChange={(v) => setUserIds((v as string[]) ?? [])}
+              menuStyle={{ maxHeight: 240 }}
+              renderValue={(value) => {
+                const count = (value as string[] | null)?.length ?? 0
+                return count ? `Выбрано: ${count}` : 'Участники…'
+              }}
               block
               disabled={isLoading || isSaving}
               placeholder="Участники…"
               searchable
               size='sm'
             />
+            {selectedUsers.length ? (
+              <div className={styles.selectedList}>
+                {selectedUsers.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    className={styles.selectedTag}
+                    onClick={() => setUserIds((prev) => prev.filter((id) => id !== u.id))}
+                    disabled={isSaving}
+                    title="Удалить из группы"
+                  >
+                    <span className={styles.selectedTagText}>{u.lastName} {u.firstName}</span>
+                    <span className={styles.selectedTagClose} aria-hidden="true">×</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
