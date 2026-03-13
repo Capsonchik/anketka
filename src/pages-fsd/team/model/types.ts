@@ -169,6 +169,7 @@ export type CloneUserResponse = {
 
 export type UserProjectAccessItem = {
   projectId: string
+  projectName?: string | null
   accessRole: 'controller' | 'coordinator'
   regionCodes: string[]
 }

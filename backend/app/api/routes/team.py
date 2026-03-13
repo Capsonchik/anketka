@@ -642,7 +642,7 @@ async def get_user_project_access (
 
   # Managers are allowed to view only scopes inside their projects.
   stmt = (
-    select(UserProjectAccess)
+    select(UserProjectAccess, Project.name)
     .join(Project, Project.id == UserProjectAccess.project_id)
     .where(UserProjectAccess.user_id == user_id, Project.company_id == company_id)
   )
@@ -651,10 +651,11 @@ async def get_user_project_access (
 
   res = await db.execute(stmt)
   items = []
-  for row in res.scalars().all():
+  for row, project_name in res.all():
     items.append(
       {
         'projectId': row.project_id,
+        'projectName': project_name,
         'accessRole': row.access_role,
         'regionCodes': list(row.region_codes or []),
       },

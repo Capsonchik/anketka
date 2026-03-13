@@ -22,6 +22,21 @@ type TeamUserForm = {
   password: string
 }
 
+function accessRoleLabel (role: 'controller' | 'coordinator') {
+  return role === 'controller' ? 'Контролер' : 'Координатор'
+}
+
+function regionsLabel (codes: string[]) {
+  if (!codes.length) return 'Не заданы'
+  if (codes.includes('*')) return 'Все регионы'
+  return codes.join(', ')
+}
+
+function shortId (id: string) {
+  if (id.length <= 12) return id
+  return `${id.slice(0, 8)}...${id.slice(-4)}`
+}
+
 export function TeamUserModalProfileTab ({
   actualMode,
   user,
@@ -52,13 +67,37 @@ export function TeamUserModalProfileTab ({
   formatDateTime: (value: string | null | undefined) => string
 }) {
   if (actualMode === 'view') {
+    const accessValue = access?.items?.length ? (
+      <div style={{ display: 'grid', gap: 8 }}>
+        {access.items.map((item) => (
+          <div
+            key={`${item.projectId}-${item.accessRole}`}
+            style={{
+              display: 'grid',
+              gap: 4,
+              padding: '8px 10px',
+              border: '1px solid rgba(10, 30, 60, 0.08)',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.7)',
+            }}
+          >
+            <div className={styles.value}>Роль: {accessRoleLabel(item.accessRole)}</div>
+            <div className={styles.hint} title={item.projectId}>
+              Проект: {item.projectName?.trim() ? item.projectName : shortId(item.projectId)}
+            </div>
+            <div className={styles.hint}>Регионы: {regionsLabel(item.regionCodes ?? [])}</div>
+          </div>
+        ))}
+      </div>
+    ) : '—'
+
     return (
       <div className={styles.grid}>
         <div className={styles.fullName}>
           {user.firstName} {user.lastName}
         </div>
-        {/* <Field label="Компания" value={companyName} />
-        <Field label="Компания (профиль)" value={user.profileCompany || '—'} /> */}
+        <Field label="Компания" value={companyName} />
+        <Field label="Компания (профиль)" value={user.profileCompany || '—'} />
         <Field label="Почта" value={user.email} isMonospace />
         <Field label="Телефон" value={user.phone || '—'} isMonospace />
         <Field label="Язык интерфейса" value={user.uiLanguage || 'ru'} isMonospace />
@@ -70,13 +109,7 @@ export function TeamUserModalProfileTab ({
         {!accessError ? (
           <Field
             label="Доступы"
-            value={
-              access?.items?.length
-                ? access.items
-                  .map((x) => `${x.accessRole}: ${x.projectId}${x.regionCodes?.length ? ` · ${x.regionCodes.join(', ')}` : ''}`)
-                  .join('; ')
-                : '—'
-            }
+            value={accessValue}
           />
         ) : null}
         {pointsAccessError ? <Field label="Локации" value="ошибка" /> : null}

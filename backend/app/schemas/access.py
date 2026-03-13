@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 class UserProjectAccessItem(BaseModel):
   projectId: UUID
+  projectName: str | None = None
   accessRole: str = Field(description='controller|coordinator')
   regionCodes: list[str] = Field(default_factory=list)
 
