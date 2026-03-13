@@ -1,13 +1,14 @@
-.root {
-  position: relative;
-}
-
 .card {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(10, 30, 60, 0.06);
   box-shadow: 0 18px 40px rgba(18, 46, 90, 0.06);
   padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.mainButton {
   display: grid;
   grid-template-columns: 44px 1fr;
   gap: 10px;
@@ -16,12 +17,17 @@
   width: 100%;
 }
 
+.mainButton:focus-visible {
+  outline: 2px solid rgba(66, 170, 255, 0.55);
+  outline-offset: 4px;
+}
+
 .actions {
-  position: absolute;
-  top: 10px;
-  right: 10px;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 8px;
+  margin-top: 2px;
 }
 
 .iconButton {
