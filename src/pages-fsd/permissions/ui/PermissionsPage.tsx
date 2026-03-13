@@ -32,7 +32,7 @@ function getApiErrorMessage (err: unknown): string {
 }
 
 function cloneRoleMap (input: Record<UserRole, string[]>): Record<UserRole, string[]> {
-  return Object.fromEntries(userRoles.map((role) => [role, [...(input[role] || [])])) as Record<UserRole, string[]>
+  return Object.fromEntries(userRoles.map((role) => [role, [...(input[role] || [])]])) as Record<UserRole, string[]>
 }
 
 export function PermissionsPage () {
