@@ -69,6 +69,7 @@ export function TeamUserModal ({
   onModeChange,
   onSave,
   onDelete,
+  onCloned,
 }: {
   open: boolean
   onClose: () => void
@@ -97,6 +98,7 @@ export function TeamUserModal ({
     },
   ) => void | Promise<void>
   onDelete: (userId: string) => void | Promise<void>
+  onCloned?: (userId: string) => void | Promise<void>
 }) {
   const user = details?.user
   const initials = user ? getInitials(user.firstName, user.lastName) : '—'
@@ -522,6 +524,10 @@ export function TeamUserModal ({
           open={isCloneOpen}
           onClose={() => setIsCloneOpen(false)}
           targetUserId={user.id}
+          onCloned={async () => {
+            if (!onCloned) return
+            await onCloned(user.id)
+          }}
         />
       ) : null}
       <Modal open={open} onClose={onClose} size="md">

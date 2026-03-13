@@ -27,10 +27,12 @@ export function TeamUserCloneModal ({
   open,
   onClose,
   targetUserId,
+  onCloned,
 }: {
   open: boolean
   onClose: () => void
   targetUserId: string
+  onCloned?: (result: CloneUserResponse) => void | Promise<void>
 }) {
   const [q, setQ] = useState('')
   const [users, setUsers] = useState<TeamUser[]>([])
@@ -147,17 +149,24 @@ export function TeamUserCloneModal ({
               type="button"
               variant="primary"
               disabled={!sourceUserId || isSubmitting}
-              onClick={() => {
+              onClick={async () => {
                 if (!sourceUserId) return
                 setIsSubmitting(true)
                 setError(null)
                 setResult(null)
                 const payload: CloneUserRequest = { sourceUserId, mode }
-                axiosMainRequest
-                  .post<CloneUserResponse>(apiRoutes.team.userClone(targetUserId), payload)
-                  .then((res) => setResult(res.data))
-                  .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Не удалось клонировать'))
-                  .finally(() => setIsSubmitting(false))
+                try {
+                  const res = await axiosMainRequest.post<CloneUserResponse>(apiRoutes.team.userClone(targetUserId), payload)
+                  setResult(res.data)
+                  handleClose()
+                  if (onCloned) {
+                    await onCloned(res.data)
+                  }
+                } catch (err: unknown) {
+                  setError(err instanceof Error ? err.message : 'Не удалось клонировать')
+                } finally {
+                  setIsSubmitting(false)
+                }
               }}
             >
               {isSubmitting ? 'Клонирование…' : 'Клонировать'}

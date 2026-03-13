@@ -486,6 +486,10 @@ export function TeamPage () {
         onModeChange={setDetailsMode}
         onSave={updateUser}
         onDelete={toggleUserActive}
+        onCloned={async (userId) => {
+          await loadUsers()
+          await openDetails(userId, 'view')
+        }}
       />
 
       <TeamUserAccessModal
