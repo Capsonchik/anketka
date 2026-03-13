@@ -96,8 +96,8 @@ export function TeamUserModalProfileTab ({
         <div className={styles.fullName}>
           {user.firstName} {user.lastName}
         </div>
-        <Field label="Компания" value={companyName} />
-        <Field label="Компания (профиль)" value={user.profileCompany || '—'} />
+        {/* <Field label="Компания" value={companyName} />
+        <Field label="Компания (профиль)" value={user.profileCompany || '—'} /> */}
         <Field label="Почта" value={user.email} isMonospace />
         <Field label="Телефон" value={user.phone || '—'} isMonospace />
         <Field label="Язык интерфейса" value={user.uiLanguage || 'ru'} isMonospace />
