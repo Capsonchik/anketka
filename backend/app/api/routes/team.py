@@ -24,6 +24,7 @@ from app.models.user_group import UserGroup
 from app.models.user_group_member import UserGroupMember
 from app.models.user_company_access import UserCompanyAccess
 from app.models.user_company_distribution import UserCompanyDistribution
+from app.models.owner_company_access import OwnerCompanyAccess
 from app.models.company import Company
 from app.models.company_settings import CompanySettings
 from app.models.user_company_reports import UserCompanyReports
