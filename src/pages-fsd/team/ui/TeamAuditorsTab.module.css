@@ -136,6 +136,13 @@
   font-weight: 500;
 }
 
+.hintCenter {
+  margin-top: 10px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .error {
   margin-top: 10px;
   font-size: 12px;

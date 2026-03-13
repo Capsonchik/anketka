@@ -423,20 +423,15 @@ export function TeamPage () {
 
       <TeamTabs value={tab} onChange={setTab} />
 
-      {tab === 'users' ? (
-        isEmpty ? (
-          <div className={styles.emptyState}>
-            <Button type="button" variant="primary" disabled={!(myRole === 'admin' || myRole === 'manager')} onClick={() => setIsModalOpen(true)}>
-              Добавить
-            </Button>
-          </div>
-        ) : (
+      <div className={styles.contentArea}>
+        {tab === 'users' ? (
           <>
             <TeamUsersTab
               users={users}
               isLoading={isLoading}
               error={error}
               isNoResults={isNoResults}
+              isEmpty={isEmpty}
               search={search}
               roleFilter={roleFilter}
               activeFilter={activeFilter}
@@ -465,14 +460,16 @@ export function TeamPage () {
                 setIsLocationsOpen(true)
               }}
               onDelete={toggleUserActive}
+              onAdd={() => setIsModalOpen(true)}
+              canAdd={myRole === 'admin' || myRole === 'manager'}
             />
           </>
-        )
-      ) : tab === 'groups' ? (
-        <TeamGroupsTab ref={groupsRef} active={tab === 'groups'} users={users} canManage={myRole === 'admin' || myRole === 'manager'} />
-      ) : (
-        <TeamAuditorsTab ref={auditorsRef} isAdmin={myRole === 'admin'} />
-      )}
+        ) : tab === 'groups' ? (
+          <TeamGroupsTab ref={groupsRef} active={tab === 'groups'} users={users} canManage={myRole === 'admin' || myRole === 'manager'} />
+        ) : (
+          <TeamAuditorsTab ref={auditorsRef} isAdmin={myRole === 'admin'} />
+        )}
+      </div>
 
       <TeamUserModal
         open={isDetailsOpen}

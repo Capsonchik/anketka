@@ -8,7 +8,7 @@ import { apiRoutes } from '@/api-config/api-routes'
 import { readActiveCompanyId } from '@/api-config/company-context'
 import type { ClientsResponse } from '@/pages-fsd/clients/model/types'
 import type { RefRegionItem, RefRegionsResponse, ShopPointItem, ShopPointsResponse } from '@/pages-fsd/project/model/types'
-import { Button } from '@/shared/ui'
+import { Button, PageLoader } from '@/shared/ui'
 
 import type { UserPointAccessReplaceRequest, UserPointAccessResponse } from '../model/types'
 import styles from './TeamUserLocationsModal.module.css'
@@ -189,7 +189,11 @@ export function TeamUserLocationsModal ({
         <Modal.Title>Локации пользователя</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
+        {isLoading ? (
+          <div className={styles.loadingWrap}>
+            <PageLoader centered size="lg" />
+          </div>
+        ) : null}
         {error ? <div className={styles.error}>{error}</div> : null}
         {!baseApProjectId && !isLoading ? <div className={styles.hint}>Сначала загрузите адресную программу (АП) для клиента.</div> : null}
 

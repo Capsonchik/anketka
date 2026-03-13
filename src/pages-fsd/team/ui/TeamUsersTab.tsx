@@ -5,6 +5,7 @@ import { Input, SelectPicker } from 'rsuite'
 
 import type { UserRole } from '@/entities/user'
 import { userRoleOptions } from '@/entities/user'
+import { Button, PageLoader } from '@/shared/ui'
 
 import type { TeamUser } from '../model/types'
 import { TeamUserCard } from './TeamUserCard'
@@ -17,6 +18,7 @@ export function TeamUsersTab ({
   isLoading,
   error,
   isNoResults,
+  isEmpty,
   search,
   roleFilter,
   activeFilter,
@@ -39,11 +41,14 @@ export function TeamUsersTab ({
   onAccess,
   onLocations,
   onDelete,
+  onAdd,
+  canAdd,
 }: {
   users: TeamUser[]
   isLoading: boolean
   error: string | null
   isNoResults: boolean
+  isEmpty: boolean
   search: string
   roleFilter: UserRole | 'all'
   activeFilter: 'all' | 'active' | 'inactive'
@@ -66,11 +71,13 @@ export function TeamUsersTab ({
   onAccess: (userId: string) => void
   onLocations: (userId: string) => void
   onDelete: (userId: string) => void
+  onAdd: () => void
+  canAdd: boolean
 }) {
   const [view, setView] = useState<TeamUsersViewMode>('cards')
 
   return (
-    <>
+    <div className={styles.root}>
       <div className={styles.filters}>
         <Input
           size="sm"
@@ -146,43 +153,54 @@ export function TeamUsersTab ({
         </div>
       </div>
 
-      {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
-      {error ? <div className={styles.error}>{error}</div> : null}
-      {isNoResults ? <div className={styles.hint}>Ничего не найдено</div> : null}
+      <div className={styles.resultsArea}>
+        {isLoading ? <PageLoader centered size="lg" /> : null}
+        {error ? <div className={styles.error}>{error}</div> : null}
+        {(isNoResults || isEmpty) && !isLoading && !error ? (
+          <div className={styles.emptyActions}>
+            <div className={styles.hint}>Ничего не найдено</div>
+            <Button type="button" variant="primary" size="sm" onClick={onAdd} disabled={!canAdd}>
+              Добавить
+            </Button>
+          </div>
+        ) : null}
 
-      {view === 'cards' ? (
-        <div className={styles.grid}>
-          {users.map((u) => (
-            <TeamUserCard
-              key={u.id}
-              user={u}
-              onOpen={() => onOpenDetails(u.id)}
-              onEdit={() => onEdit(u.id)}
-              onAccess={() => onAccess(u.id)}
-              onLocations={() => onLocations(u.id)}
-              onDelete={() => onDelete(u.id)}
-              canEdit={canEditUser(u)}
-              canAccess={canManageAccess}
-              canLocations={canManageAccess}
-              canDelete={canManageAccess}
-            />
-          ))}
-        </div>
-      ) : (
-        <TeamUsersTable
-          users={users}
-          onOpen={(userId) => onOpenDetails(userId)}
-          onEdit={(userId) => onEdit(userId)}
-          onAccess={(userId) => onAccess(userId)}
-          onLocations={(userId) => onLocations(userId)}
-          onDelete={(userId) => onDelete(userId)}
-          canEdit={canEditUser}
-          canAccess={canManageAccess}
-          canLocations={canManageAccess}
-          canDelete={canManageAccess}
-        />
-      )}
-    </>
+        {!isLoading && !error && !isNoResults && !isEmpty && view === 'cards' ? (
+          <div className={styles.grid}>
+            {users.map((u) => (
+              <TeamUserCard
+                key={u.id}
+                user={u}
+                onOpen={() => onOpenDetails(u.id)}
+                onEdit={() => onEdit(u.id)}
+                onAccess={() => onAccess(u.id)}
+                onLocations={() => onLocations(u.id)}
+                onDelete={() => onDelete(u.id)}
+                canEdit={canEditUser(u)}
+                canAccess={canManageAccess}
+                canLocations={canManageAccess}
+                canDelete={canManageAccess}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {!isLoading && !error && !isNoResults && !isEmpty && view !== 'cards' ? (
+          <TeamUsersTable
+            users={users}
+            onOpen={(userId) => onOpenDetails(userId)}
+            onEdit={(userId) => onEdit(userId)}
+            onAccess={(userId) => onAccess(userId)}
+            onLocations={(userId) => onLocations(userId)}
+            onDelete={(userId) => onDelete(userId)}
+            canEdit={canEditUser}
+            canAccess={canManageAccess}
+            canLocations={canManageAccess}
+            canDelete={canManageAccess}
+          />
+        ) : null}
+      </div>
+    </div>
   )
 }
 

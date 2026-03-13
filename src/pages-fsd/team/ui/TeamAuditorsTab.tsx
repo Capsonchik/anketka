@@ -8,6 +8,7 @@ import { DatePicker, Input, Modal, SelectPicker } from 'rsuite'
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import type { AuditorCreateRequest, AuditorImportResponse, AuditorItem, AuditorGender, AuditorsResponse } from '@/entities/auditor'
+import { PageLoader } from '@/shared/ui'
 
 import { downloadApiFile } from '../lib/downloadApiFile'
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
@@ -347,10 +348,10 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
         <Input size="sm" value={city} onChange={(v) => setCity(String(v ?? ''))} placeholder="Город…" />
       </div>
 
-      {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
+      {isLoading ? <PageLoader centered size="lg" /> : null}
       {error ? <div className={styles.error}>{error}</div> : null}
-      {isEmpty ? <div className={styles.hint}>Пока нет аудиторов</div> : null}
-      {isNoResults ? <div className={styles.hint}>Ничего не найдено</div> : null}
+      {isEmpty ? <div className={styles.hintCenter}>Пока нет аудиторов</div> : null}
+      {isNoResults ? <div className={styles.hintCenter}>Ничего не найдено</div> : null}
 
       {importError ? <div className={styles.error}>{importError}</div> : null}
       {importResult ? (
@@ -371,7 +372,7 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
         </div>
       ) : null}
 
-      {items.length ? (
+      {!isLoading && items.length ? (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>

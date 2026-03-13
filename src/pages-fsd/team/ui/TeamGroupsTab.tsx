@@ -6,7 +6,7 @@ import { Input, Modal } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
-import { Button } from '@/shared/ui'
+import { Button, PageLoader } from '@/shared/ui'
 
 import type { CreateUserGroupRequest, TeamUser, UpdateUserGroupRequest, UserGroupItem, UserGroupsResponse } from '../model/types'
 import { TeamGroupMembersModal } from './TeamGroupMembersModal'
@@ -150,7 +150,7 @@ export const TeamGroupsTab = forwardRef<TeamGroupsTabHandle, Props>(function Tea
         </div>
       </div>
 
-      {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
+      {isLoading ? <PageLoader centered size="lg" /> : null}
       {error ? <div className={styles.error}>{error}</div> : null}
 
       {filtered.length ? (
@@ -190,7 +190,7 @@ export const TeamGroupsTab = forwardRef<TeamGroupsTabHandle, Props>(function Tea
           </table>
         </div>
       ) : !isLoading ? (
-        <div className={styles.hint}>Групп пока нет</div>
+        <div className={styles.hintCenter}>Групп пока нет</div>
       ) : null}
 
       <Modal open={isCreateOpen} onClose={() => setIsCreateOpen(false)} size="sm">

@@ -3,4 +3,5 @@ export { Button, ButtonLink } from './button'
 export type { ButtonVariant } from './button'
 export { AddressbookTemplateTable } from './addressbook-template-table'
 export { Spinner } from './spinner'
+export { PageLoader } from './loader'
 

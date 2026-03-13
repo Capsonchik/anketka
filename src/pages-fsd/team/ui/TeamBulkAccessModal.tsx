@@ -7,7 +7,7 @@ import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import type { ProjectsResponse, ProjectItem } from '@/pages-fsd/projects/model/types'
 import type { RefRegionItem, RefRegionsResponse } from '@/pages-fsd/project/model/types'
-import { Button } from '@/shared/ui'
+import { Button, PageLoader } from '@/shared/ui'
 
 import type { BulkAssignRequest, BulkAssignResponse, TeamUser } from '../model/types'
 
@@ -131,7 +131,11 @@ export function TeamBulkAccessModal ({
         <Modal.Title>Массовое назначение (проект + регионы)</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
+        {isLoading ? (
+          <div className={styles.loadingWrap}>
+            <PageLoader centered size="lg" />
+          </div>
+        ) : null}
         {error ? <div className={styles.error}>{error}</div> : null}
 
         <div className={styles.formRow}>

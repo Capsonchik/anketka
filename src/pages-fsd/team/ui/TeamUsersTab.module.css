@@ -1,3 +1,9 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
 .filters {
   margin-top: 14px;
   display: grid;
@@ -26,10 +32,10 @@
 }
 
 .error {
-  margin-top: 10px;
   font-size: 12px;
   font-weight: 500;
   color: rgba(218, 60, 60, 0.92);
+  text-align: center;
 }
 
 .grid {
@@ -61,5 +67,20 @@
   margin-top: 14px;
   display: grid;
   gap: 10px;
+}
+
+.emptyActions {
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  gap: 10px;
+  place-content: center;
+  min-height: 100%;
+}
+
+.resultsArea {
+  flex: 1;
+  min-height: 0;
+  display: grid;
 }
 

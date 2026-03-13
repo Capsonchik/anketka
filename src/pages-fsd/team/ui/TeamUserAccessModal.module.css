@@ -60,3 +60,7 @@
   flex-wrap: wrap;
 }
 
+.loadingWrap {
+  min-height: 180px;
+}
+

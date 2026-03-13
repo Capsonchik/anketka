@@ -64,6 +64,10 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
+.loadingWrap {
+  min-height: 180px;
+}
+
 .selectedList {
   margin-top: 8px;
   display: flex;

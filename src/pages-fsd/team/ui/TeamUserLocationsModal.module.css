@@ -73,3 +73,7 @@
   color: var(--textMuted, #6b7280);
 }
 
+.loadingWrap {
+  min-height: 180px;
+}
+

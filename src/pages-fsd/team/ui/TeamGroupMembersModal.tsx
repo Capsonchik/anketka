@@ -5,7 +5,7 @@ import { CheckPicker, Checkbox, Input, Modal } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
-import { Button } from '@/shared/ui'
+import { Button, PageLoader } from '@/shared/ui'
 
 import type {
   AddUserGroupMemberByEmailRequest,
@@ -152,7 +152,11 @@ export function TeamGroupMembersModal ({
         <Modal.Title>Участники группы{groupName ? `: ${groupName}` : ''}</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
+        {isLoading ? (
+          <div className={styles.loadingWrap}>
+            <PageLoader centered size="lg" />
+          </div>
+        ) : null}
         {error ? <div className={styles.error}>{error}</div> : null}
 
         <div className={styles.row}>

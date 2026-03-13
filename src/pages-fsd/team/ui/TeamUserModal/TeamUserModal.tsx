@@ -9,6 +9,7 @@ import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import { userDefaultPermissionsByRole, userRoleLabel, type UserRole } from '@/entities/user'
 import type { ShopPointItem, ShopPointsResponse } from '@/pages-fsd/project/model/types'
+import { PageLoader } from '@/shared/ui'
 import type {
   CompanyFilterValuesResponse,
   ReplaceUserCompaniesAccessRequest,
@@ -535,7 +536,11 @@ export function TeamUserModal ({
         <Modal.Title>Участник</Modal.Title>
       </Modal.Header>
       <Modal.Body className={styles.modalBody}>
-        {isLoading ? <div>Загрузка…</div> : null}
+        {isLoading ? (
+          <div className={styles.loadingWrap}>
+            <PageLoader centered size="lg" />
+          </div>
+        ) : null}
         {error ? <div className={styles.error}>{error}</div> : null}
 
         {canRender ? (

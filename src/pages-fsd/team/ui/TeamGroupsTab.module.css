@@ -95,6 +95,14 @@
   color: var(--text-secondary);
 }
 
+.hintCenter {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .error {
   margin-top: 12px;
   font-size: 13px;

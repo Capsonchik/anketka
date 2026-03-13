@@ -1,0 +1,9 @@
+.root {
+  width: 100%;
+}
+
+.centered {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+}
