@@ -15,6 +15,7 @@ from app.models.auditor import Auditor
 from app.models.owner_company_access import OwnerCompanyAccess
 from app.models.user_company_access import UserCompanyAccess
 from app.models.user import User
+from app.models.user_role import UserRole
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -66,14 +67,16 @@ async def get_current_user (
     except Exception:
       raise HTTPException(status_code=400, detail='Некорректный X-Company-Id')
 
-    access_res = await db.execute(
-      select(OwnerCompanyAccess.id).where(
-        OwnerCompanyAccess.owner_user_id == user.id,
-        OwnerCompanyAccess.company_id == requested,
-      ),
-    )
-    if access_res.scalar_one_or_none() is None:
-      raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+    # Platform owner with admin role can work in any company context.
+    if user.role != UserRole.admin:
+      access_res = await db.execute(
+        select(OwnerCompanyAccess.id).where(
+          OwnerCompanyAccess.owner_user_id == user.id,
+          OwnerCompanyAccess.company_id == requested,
+        ),
+      )
+      if access_res.scalar_one_or_none() is None:
+        raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
 
     active_company_id = requested
   elif x_company_id and x_company_id.strip():
