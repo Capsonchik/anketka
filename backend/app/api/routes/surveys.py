@@ -1,6 +1,9 @@
+import csv
+from io import BytesIO, StringIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from openpyxl import load_workbook
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -88,6 +91,92 @@ def _template_quick (survey_id: UUID) -> tuple[list[SurveyPage], list[SurveyQues
     SurveyPage(survey_id=survey_id, title='Мониторинг цен', sort_order=2),
   ]
   return (pages, [], [])
+
+
+def _norm_cell (value: object) -> str:
+  if value is None:
+    return ''
+  return str(value).strip()
+
+
+def _to_bool (value: str) -> bool:
+  return value.strip().lower() in {'1', 'true', 'yes', 'y', 'да', 'д'}
+
+
+def _to_int (value: str) -> int | None:
+  raw = value.strip()
+  if not raw:
+    return None
+  try:
+    return int(float(raw))
+  except Exception:
+    return None
+
+
+def _read_question_rows (file: UploadFile, raw: bytes) -> list[dict[str, str]]:
+  filename = (file.filename or '').lower()
+  if filename.endswith('.csv'):
+    text = raw.decode('utf-8-sig', errors='replace')
+    reader = csv.DictReader(StringIO(text))
+    rows: list[dict[str, str]] = []
+    for row in reader:
+      rows.append({str(k or '').strip(): _norm_cell(v) for k, v in dict(row).items()})
+    return rows
+
+  wb = load_workbook(BytesIO(raw), data_only=True)
+  ws = wb.active
+  headers: list[str] = []
+  rows: list[dict[str, str]] = []
+
+  for i, row in enumerate(ws.iter_rows(values_only=True)):
+    if i == 0:
+      headers = [_norm_cell(x) for x in row]
+      continue
+    item: dict[str, str] = {}
+    has_value = False
+    for idx, cell in enumerate(row):
+      key = headers[idx] if idx < len(headers) else f'col_{idx + 1}'
+      value = _norm_cell(cell)
+      if value:
+        has_value = True
+      item[key] = value
+    if has_value:
+      rows.append(item)
+  return rows
+
+
+def _row_value (row: dict[str, str], *keys: str) -> str:
+  for key in keys:
+    value = row.get(key, '')
+    if value and value.strip():
+      return value.strip()
+  return ''
+
+
+def _question_config_from_row (row: dict[str, str]) -> dict:
+  config: dict[str, object] = {}
+  for key in (
+    'max_selected',
+    'rank_options',
+    'scale_min',
+    'scale_max',
+    'scale_step',
+    'scale_min_label',
+    'scale_max_label',
+    'scale_ui',
+    'table_rows',
+    'table_cols',
+    'table_mode',
+    'table_max_per_row',
+    'photo_max',
+    'dynamic_source',
+  ):
+    value = _row_value(row, key)
+    if not value:
+      continue
+    as_int = _to_int(value)
+    config[key] = as_int if as_int is not None else value
+  return config
 
 
 @router.get(
@@ -404,6 +493,132 @@ async def create_survey (
   res = await db.execute(select(Survey).where(Survey.id == survey.id))
   survey = res.scalar_one()
   return SurveyCreateResponse(survey=to_survey_item(survey))
+
+
+@router.post(
+  '/{survey_id}/questions/import',
+  response_model=SurveyBuilderResponse,
+  summary='Импорт вопросов из Excel/CSV',
+)
+async def import_survey_questions (
+  survey_id: UUID,
+  file: UploadFile = File(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyBuilderResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+
+  raw = await file.read()
+  if not raw:
+    raise HTTPException(status_code=400, detail='Файл пустой')
+
+  try:
+    rows = _read_question_rows(file, raw)
+  except Exception:
+    raise HTTPException(status_code=400, detail='Не удалось прочитать файл. Поддерживаются CSV/XLSX')
+  if not rows:
+    raise HTTPException(status_code=400, detail='В файле нет строк с вопросами')
+
+  pages_res = await db.execute(
+    select(SurveyPage).where(SurveyPage.survey_id == survey_id).order_by(SurveyPage.sort_order.asc()),
+  )
+  existing_pages = pages_res.scalars().all()
+  page_by_key: dict[str, SurveyPage] = {}
+  max_page_order = 0
+  for page in existing_pages:
+    max_page_order = max(max_page_order, int(page.sort_order or 0))
+    page_by_key[str(page.id)] = page
+    page_by_key[page.title.strip().lower()] = page
+
+  question_count_by_page: dict[UUID, int] = {}
+  counts_res = await db.execute(
+    select(SurveyQuestion.page_id, func.count())
+    .where(SurveyQuestion.survey_id == survey_id)
+    .group_by(SurveyQuestion.page_id),
+  )
+  for page_id, count in counts_res.all():
+    question_count_by_page[page_id] = int(count or 0)
+
+  pending_options: list[tuple[SurveyQuestion, str]] = []
+  imported = 0
+
+  for row in rows:
+    title = _row_value(row, 'question_name', 'title', 'question')
+    if not title:
+      continue
+
+    section_name = _row_value(row, 'section_name')
+    section_id = _row_value(row, 'section_id')
+    page_key = section_id or section_name.strip().lower()
+    page = page_by_key.get(page_key) if page_key else None
+    if page is None:
+      max_page_order += 1
+      page_title = section_name or f'Раздел {max_page_order}'
+      page = SurveyPage(
+        survey_id=survey_id,
+        title=page_title,
+        sort_order=max_page_order,
+      )
+      db.add(page)
+      await db.flush()
+      page_by_key[str(page.id)] = page
+      page_by_key[page.title.strip().lower()] = page
+
+    q_type = _row_value(row, 'question_type', 'type') or 'text'
+    code = _row_value(row, 'code') or None
+    description = _row_value(row, 'question_description', 'description') or None
+    required = _to_bool(_row_value(row, 'required'))
+    sort_order = question_count_by_page.get(page.id, 0) + 1
+    question_count_by_page[page.id] = sort_order
+
+    config = _question_config_from_row(row)
+    if code:
+      config['code'] = code
+    answers_raw = _row_value(row, 'answers')
+    if answers_raw and q_type in {'select', 'multiselect', 'radio', 'checkbox'}:
+      config['answers'] = answers_raw
+
+    question = SurveyQuestion(
+      survey_id=survey_id,
+      page_id=page.id,
+      type=q_type,
+      code=code,
+      title=title,
+      description=description,
+      required=required,
+      sort_order=sort_order,
+      config=config or None,
+    )
+    db.add(question)
+    await db.flush()
+    imported += 1
+
+    if answers_raw and q_type in {'select', 'multiselect', 'radio', 'checkbox'}:
+      pending_options.append((question, answers_raw))
+
+  if imported == 0:
+    raise HTTPException(status_code=400, detail='Не найдено валидных строк (ожидается колонка question_name)')
+
+  for question, answers_raw in pending_options:
+    chunks = [x.strip() for x in answers_raw.replace('\n', ';').split(';') if x.strip()]
+    for idx, chunk in enumerate(chunks, start=1):
+      if '|' in chunk:
+        label, value = chunk.split('|', 1)
+      else:
+        label = chunk
+        value = chunk
+      option = SurveyQuestionOption(
+        question_id=question.id,
+        label=label.strip(),
+        value=value.strip(),
+        sort_order=idx,
+      )
+      db.add(option)
+
+  await db.commit()
+  return await get_survey_builder(survey_id, db, current_user)
 
 
 @router.post(

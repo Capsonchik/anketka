@@ -85,6 +85,7 @@ export const apiRoutes = {
     surveyBuilder: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/builder`,
     surveyProjects: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/projects`,
     surveyApplyTemplate: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/apply-template`,
+    surveyImportQuestions: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/questions/import`,
     surveyQuestion: (surveyId: string, questionId: string) => `${ROUTES.surveys}/${surveyId}/questions/${questionId}`,
     surveyPages: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/pages`,
     surveyPage: (surveyId: string, pageId: string) => `${ROUTES.surveys}/${surveyId}/pages/${pageId}`,

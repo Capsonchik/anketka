@@ -1,29 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Checkbox, Input, Modal, SelectPicker } from 'rsuite'
+import { Checkbox, Input, Modal } from 'rsuite'
 
 import type { SurveyQuestionItem, SurveyQuestionOptionItem, SurveyQuestionUpdateRequest } from '@/entities/survey'
 import { Button } from '@/shared/ui'
 
 import styles from './SurveyQuestionEditorModal.module.css'
-
-const QUESTION_TYPES = [
-  { value: 'short_text', label: 'Короткий текст' },
-  { value: 'long_text', label: 'Длинный текст' },
-  { value: 'number', label: 'Число' },
-  { value: 'email', label: 'Email' },
-  { value: 'phone', label: 'Телефон' },
-  { value: 'date', label: 'Дата' },
-  { value: 'time', label: 'Время' },
-  { value: 'single_choice', label: 'Одиночный выбор' },
-  { value: 'multi_choice', label: 'Множественный выбор' },
-  { value: 'scale', label: 'Шкала' },
-  { value: 'matrix', label: 'Табличный' },
-  { value: 'photo', label: 'Фото' },
-  { value: 'rank', label: 'Ранг' },
-  { value: 'boolean', label: 'Да/Нет' },
-]
 
 export type SurveyQuestionEditorModalProps = {
   open: boolean

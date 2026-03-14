@@ -1,6 +1,6 @@
-import { SurveyPage } from '@/pages-fsd/survey/index'
+import { SurveyEditorPage } from '@/pages-fsd/survey-editor'
 
 export default async function SurveyRoute ({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  return <SurveyPage surveyId={id} />
+  return <SurveyEditorPage surveyId={id} />
 }

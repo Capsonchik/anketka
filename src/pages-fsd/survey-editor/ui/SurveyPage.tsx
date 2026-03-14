@@ -7,12 +7,10 @@ import { Input, Modal, SelectPicker } from 'rsuite'
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import type {
-  SurveyApplyTemplateRequest,
   SurveyBuilderResponse,
   SurveyCategory,
   SurveyAttachedProjectsResponse,
   SurveyItem,
-  SurveyPageItem,
   SurveyQuestionItem,
   SurveyQuestionUpdateRequest,
   SurveyResponse,
@@ -25,46 +23,7 @@ import { SurveySectionList } from './SurveySectionList'
 import { SurveySimulatorPanel } from './SurveySimulatorPanel'
 import styles from './SurveyPage.module.css'
 
-type TemplateKey = 'price_monitoring_full' | 'price_monitoring_quick'
-
-const templates: Array<{
-  key: TemplateKey
-  title: string
-  description: string
-  steps: string[]
-  highlights: string[]
-}> = [
-  {
-    key: 'price_monitoring_full',
-    title: 'Ценовой мониторинг · Полный',
-    description: '2 страницы: Скрининг (магазин/аудитор/фото/старт) → Анкета (товары из чек-листа).',
-    steps: [
-      'Скрининг: дата начала, регион/город, бренд/адрес, ФИО/телефон/почта, фото',
-      'Анкета: группа/бренд/номенклатура, цены, фейсы, запас, фото, комментарии',
-    ],
-    highlights: [
-      'Подходит для аудита “как по регламенту”',
-      'Есть дата/время старта проверки + данные аудитора',
-      'Есть фото магазина и фото по товару',
-    ],
-  },
-  {
-    key: 'price_monitoring_quick',
-    title: 'Ценовой мониторинг · Быстрый',
-    description: 'Минимальный набор полей, чтобы быстро собрать цены и наличие.',
-    steps: [
-      'Выбор магазина из адресной программы проекта',
-      'Мониторинг цен по товарам из чек-листа проекта',
-    ],
-    highlights: [
-      'Минимум полей — быстрее проход',
-      'Фокус на ценах/наличии',
-      'Подходит для частых повторных обходов',
-    ],
-  },
-]
-
-export function SurveyPage ({ surveyId }: { surveyId: string }) {
+export function SurveyEditorPage ({ surveyId }: { surveyId: string }) {
   const searchParams = useSearchParams()
   const projectIdFromQuery = useMemo(() => searchParams.get('projectId'), [searchParams])
 
@@ -74,10 +33,6 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const [selectedTemplateKey, setSelectedTemplateKey] = useState<TemplateKey>('price_monitoring_full')
-  const [isApplying, setIsApplying] = useState(false)
-  const [applyError, setApplyError] = useState<string | null>(null)
 
   const [editQuestion, setEditQuestion] = useState<{ q: SurveyQuestionItem; pageTitle: string } | null>(null)
   const [questionError, setQuestionError] = useState<string | null>(null)
@@ -100,10 +55,6 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
     avgScorePercent: number | null
     scoreDistribution: Array<{ bucket: string; count: number }>
   } | null>(null)
-
-  const templateKey = (survey?.templateKey ?? null) as string | null
-
-  const shouldPickTemplate = survey?.category === 'price_monitoring' && !templateKey && (builder?.pages?.length ?? 0) === 0
 
   const categoryLabel = useMemo(() => formatCategory(survey?.category ?? null), [survey?.category])
 
@@ -175,30 +126,6 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
     loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surveyId])
-
-  useEffect(() => {
-    if (!survey) return
-    if (shouldPickTemplate) {
-      setBuilder(null)
-      return
-    }
-    loadBuilder().catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [survey?.id, survey?.templateKey])
-
-  async function applyTemplate () {
-    setApplyError(null)
-    setIsApplying(true)
-    try {
-      const payload: SurveyApplyTemplateRequest = { templateKey: selectedTemplateKey }
-      await axiosMainRequest.post(apiRoutes.surveys.surveyApplyTemplate(surveyId), payload)
-      await loadAll()
-    } catch (err: unknown) {
-      setApplyError(getApiErrorMessage(err))
-    } finally {
-      setIsApplying(false)
-    }
-  }
 
   const questionsById = useMemo(() => {
     const map = new Map<string, { pageTitle: string; question: SurveyQuestionItem }>()
@@ -327,10 +254,10 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
       </div>
 
       <div className={styles.subTitle}>
-        {survey ? <span className={styles.surveyTitle}>{survey.title}</span> : 'Загрузка…'}
+        {survey ? <span className={styles.surveyTitle}>{survey.title}</span> : 'Загрузка...'}
       </div>
 
-      {!isLoading && !error && !shouldPickTemplate ? (
+      {!isLoading && !error ? (
         <div className={styles.projectsRow}>
           <span>Проекты:</span>
           {attachedProjects.length ? (
@@ -353,81 +280,22 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
         </div>
       ) : null}
 
-      {!shouldPickTemplate ? (
-        <div className={styles.hint} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span>Ссылка для прохождения</span>
-          {projectIdFromQuery ? (
-            <Button type="button" variant="ghost" onClick={copyTestLink} disabled={isLoading}>
-              Скопировать (тест)
-            </Button>
-          ) : (
-            <span style={{ opacity: 0.75 }}>Откройте анкету из проекта, чтобы получить ссылку</span>
-          )}
-        </div>
-      ) : null}
+      <div className={styles.hint} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span>Ссылка для прохождения</span>
+        {projectIdFromQuery ? (
+          <Button type="button" variant="ghost" onClick={copyTestLink} disabled={isLoading}>
+            Скопировать (тест)
+          </Button>
+        ) : (
+          <span style={{ opacity: 0.75 }}>Откройте анкету из проекта, чтобы получить ссылку</span>
+        )}
+      </div>
 
       <div className={styles.body}>
-        {isLoading ? <div className={styles.hint}>Загрузка…</div> : null}
+        {isLoading ? <div className={styles.hint}>Загрузка...</div> : null}
         {error ? <div className={styles.error}>{error}</div> : null}
 
-        {!isLoading && !error && survey && shouldPickTemplate ? (
-          <section className={styles.templatePick}>
-            <div className={styles.hint}>
-              Выберите шаблон для анкеты ценового мониторинга. Шаблон применяется один раз и создаёт страницы и вопросы.
-            </div>
-
-            <div className={styles.templatePickBody}>
-              <div className={styles.templateGrid}>
-                {templates.map((t) => {
-                  const isSelected = selectedTemplateKey === t.key
-                  return (
-                    <div
-                      key={t.key}
-                      role="button"
-                      tabIndex={0}
-                      className={`${styles.templateCard} ${isSelected ? styles.templateCardSelected : ''}`.trim()}
-                      onClick={() => setSelectedTemplateKey(t.key)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') setSelectedTemplateKey(t.key)
-                      }}
-                    >
-                      <div className={styles.templateTitle}>{t.title}</div>
-                      <div className={styles.templateDescription}>{t.description}</div>
-
-                      <div className={styles.templateMeta}>
-                        <div className={styles.templateMetaTitle}>Что будет создано</div>
-                        <ul className={styles.templateSteps}>
-                          {t.steps.map((s) => (
-                            <li key={s}>{s}</li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div className={styles.templateMeta}>
-                        <div className={styles.templateMetaTitle}>Когда выбирать</div>
-                        <ul className={styles.templateHighlights}>
-                          {t.highlights.map((h) => (
-                            <li key={h}>{h}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {applyError ? <div className={styles.error} style={{ marginTop: 12 }}>{applyError}</div> : null}
-
-            <div className={styles.templatePickFooter}>
-              <Button type="button" variant="primary" onClick={applyTemplate} disabled={isApplying}>
-                Применить шаблон
-              </Button>
-            </div>
-          </section>
-        ) : null}
-
-        {!isLoading && !error && survey && !shouldPickTemplate && builder ? (
+        {!isLoading && !error && survey && builder ? (
           <section>
             <div className={styles.toolbar}>
               <Button type="button" variant="ghost" onClick={() => setSimulatorOpen(true)}>
@@ -590,32 +458,3 @@ function formatCategory (category: SurveyCategory | null) {
   if (category === 'price_monitoring') return 'Ценовой мониторинг'
   return 'Анкета'
 }
-
-function TrashIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 3h6m-8 4h10m-9 0 .7 14h6.6L16 7M10 11v7m4-7v7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function EditIcon () {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-

@@ -1,0 +1,114 @@
+.page {
+  display: grid;
+  gap: 14px;
+  height: 100%;
+  grid-template-rows: auto auto 1fr;
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.headerRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.subTitle {
+  margin-top: -2px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.projectsRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.projectPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 1);
+  color: rgba(0, 0, 0, 0.78);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.projectPill:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.surveyTitle {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.error {
+  color: rgba(218, 60, 60, 0.92);
+  font-weight: 600;
+}
+
+.footerRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.analyticsBlock {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.03);
+  margin-bottom: 12px;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.analyticsRow {
+  font-size: 13px;
+}
+
+.analyticsRow strong {
+  margin-left: 6px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.78);
+}

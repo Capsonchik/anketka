@@ -36,6 +36,28 @@
   align-items: center;
 }
 
+.filterTitle {
+  width: 180px;
+  min-width: 180px;
+}
+
+.filterId {
+  width: 120px;
+  min-width: 120px;
+}
+
+.filterSelect,
+.filterDate {
+  width: 150px;
+  min-width: 150px;
+}
+
+.filterSelect :global(.rs-picker-toggle),
+.filterDate :global(.rs-picker-toggle) {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(10, 30, 60, 0.12);
+}
+
 .statusBadge {
   display: inline-block;
   padding: 2px 8px;
@@ -68,6 +90,27 @@
   width: 100%;
 }
 
+@media (max-width: 980px) {
+  .filters {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 700px) {
+  .filters {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .filterTitle,
+  .filterId,
+  .filterSelect,
+  .filterDate {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 .hint {
   color: var(--text-secondary);
   font-weight: 600;
@@ -80,13 +123,15 @@
 
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  margin-top: 14px;
 }
 
 .table {
-  border-collapse: collapse;
   width: 100%;
+  border-collapse: collapse;
   min-width: 860px;
 }
 
@@ -94,24 +139,35 @@
   text-align: left;
   font-size: 12px;
   font-weight: 600;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  color: rgba(11, 18, 32, 0.72);
+  background: rgba(255, 255, 255, 0.75);
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.08);
   white-space: nowrap;
-  color: var(--text-secondary);
 }
 
 .td {
   font-size: 13px;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
   white-space: nowrap;
 }
 
 .tdWrap {
   font-size: 13px;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.06);
   white-space: pre-wrap;
+}
+
+.row {
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover {
+    background: rgba(66, 170, 255, 0.06);
+  }
 }
 
 .rowActions {
@@ -125,16 +181,24 @@
   width: 30px;
   height: 30px;
   border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.7);
   display: grid;
   place-items: center;
   cursor: pointer;
-  color: rgba(0, 0, 0, 0.75);
+  color: rgba(11, 18, 32, 0.75);
+  transition: background-color 120ms ease, transform 120ms ease;
 }
 
 .iconButtonDanger {
   color: rgba(218, 60, 60, 0.92);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iconButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
 }
 
 .iconButton:disabled {

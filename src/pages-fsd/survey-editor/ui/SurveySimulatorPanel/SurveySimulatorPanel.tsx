@@ -55,8 +55,6 @@ export function SurveySimulatorPanel ({ surveyId, builder, open, onClose }: Surv
     setResult(null)
   }
 
-  const questions = builder.pages.flatMap((p) => p.questions)
-
   return (
     <Modal open={open} onClose={onClose} size="lg">
       <Modal.Header>
@@ -100,7 +98,7 @@ export function SurveySimulatorPanel ({ surveyId, builder, open, onClose }: Surv
           Закрыть
         </Button>
         <Button type="button" variant="primary" onClick={runSimulate} disabled={isLoading}>
-          {isLoading ? 'Расчёт…' : 'Рассчитать баллы'}
+          {isLoading ? 'Расчёт...' : 'Рассчитать баллы'}
         </Button>
       </Modal.Footer>
     </Modal>
@@ -150,7 +148,6 @@ function SimulatorQuestion ({
   onChange: (v: string | string[]) => void
   getCode: (q: SurveyQuestionItem) => string
 }) {
-  const code = getCode(question)
   const type = question.type
 
   if (type === 'intro') return null

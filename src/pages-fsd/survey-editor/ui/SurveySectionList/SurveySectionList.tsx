@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
-import type { SurveyBuilderResponse, SurveyPageItem, SurveyQuestionItem } from '@/entities/survey'
+import type { SurveyBuilderResponse, SurveyQuestionItem } from '@/entities/survey'
 
 import { SurveySectionCard } from './SurveySectionCard'
 import styles from './SurveySectionList.module.css'

@@ -28,7 +28,6 @@ export function ProjectSurveysTab ({ projectId }: { projectId: string }) {
   const [selectedSurveyId, setSelectedSurveyId] = useState<string | null>(null)
 
   const [newTitle, setNewTitle] = useState('')
-  const [newCategory, setNewCategory] = useState<'price_monitoring' | 'mystery'>('price_monitoring')
 
   async function loadAttached () {
     setIsAttachedLoading(true)
@@ -78,7 +77,6 @@ export function ProjectSurveysTab ({ projectId }: { projectId: string }) {
     setModalError(null)
     setSelectedSurveyId(null)
     setNewTitle('')
-    setNewCategory('price_monitoring')
     setQ('')
     await loadAll()
   }
@@ -104,7 +102,7 @@ export function ProjectSurveysTab ({ projectId }: { projectId: string }) {
     setIsSubmitting(true)
     setModalError(null)
     try {
-      const created = await axiosMainRequest.post<SurveyCreateResponse>(apiRoutes.surveys.surveys, { title, category: newCategory })
+      const created = await axiosMainRequest.post<SurveyCreateResponse>(apiRoutes.surveys.surveys, { title, category: 'price_monitoring' })
       const surveyId = created.data?.survey?.id
       if (!surveyId) {
         setModalError('Не удалось создать анкету')
@@ -265,17 +263,6 @@ export function ProjectSurveysTab ({ projectId }: { projectId: string }) {
               onChange={(v) => setNewTitle(String(v ?? ''))}
               placeholder="Название анкеты"
               style={{ flex: 1, minWidth: 220 }}
-            />
-            <SelectPicker
-              value={newCategory}
-              onChange={(v) => setNewCategory((v as 'price_monitoring' | 'mystery') ?? 'price_monitoring')}
-              cleanable={false}
-              searchable={false}
-              data={[
-                { value: 'price_monitoring', label: 'Ценовой мониторинг' },
-                { value: 'mystery', label: 'Мистери (скоро)', disabled: true },
-              ]}
-              style={{ minWidth: 220 }}
             />
             <Button type="button" variant="primary" onClick={createAndAttach} disabled={isSubmitting || newTitle.trim().length === 0}>
               Создать и прикрепить
