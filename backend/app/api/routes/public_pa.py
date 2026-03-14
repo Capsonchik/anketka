@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.services.scoring import compute_survey_score
 from app.models.checklist import Checklist
 from app.models.checklist_item import ChecklistItem
 from app.models.project import Project
@@ -33,6 +34,12 @@ router = APIRouter()
 class PublicPaSubmitRequest(BaseModel):
   answers: dict = Field(default_factory=dict)
   mode: Literal['continue', 'finish'] | None = None
+  context: dict | None = None
+
+
+class PublicPaDraftRequest(BaseModel):
+  answers: dict = Field(default_factory=dict)
+  context: dict | None = None
 
 
 async def _get_invite_or_404 (db: AsyncSession, token: UUID) -> SurveyInvite:
@@ -64,7 +71,15 @@ async def _get_builder (db: AsyncSession, survey_id: UUID) -> SurveyBuilderRespo
     )
     for opt in opt_res.scalars().all():
       options_by_q.setdefault(opt.question_id, []).append(
-        SurveyQuestionOptionItem(id=opt.id, label=opt.label, value=opt.value, sortOrder=int(opt.sort_order or 0)),
+        SurveyQuestionOptionItem(
+          id=opt.id,
+          label=opt.label,
+          value=opt.value,
+          sortOrder=int(opt.sort_order or 0),
+          points=getattr(opt, 'points', 0) or 0,
+          isExclusive=getattr(opt, 'is_exclusive', False) or False,
+          isNA=getattr(opt, 'is_na', False) or False,
+        ),
       )
 
   questions_by_page: dict[UUID, list[SurveyQuestionItem]] = {}
@@ -73,10 +88,22 @@ async def _get_builder (db: AsyncSession, survey_id: UUID) -> SurveyBuilderRespo
       SurveyQuestionItem(
         id=q.id,
         type=q.type,
+        code=getattr(q, 'code', None),
         title=q.title,
+        description=getattr(q, 'description', None),
         required=bool(q.required),
         sortOrder=int(q.sort_order or 0),
         config=q.config,
+        validation=getattr(q, 'validation', None),
+        logic=getattr(q, 'logic', None),
+        scoring=getattr(q, 'scoring', None),
+        display=getattr(q, 'display', None),
+        media=getattr(q, 'media', None),
+        analyticsKey=getattr(q, 'analytics_key', None),
+        weight=float(getattr(q, 'weight', 0) or 0),
+        allowNa=getattr(q, 'allow_na', False) or False,
+        allowComment=getattr(q, 'allow_comment', False) or False,
+        dynamicTitleTemplate=getattr(q, 'dynamic_title_template', None),
         options=options_by_q.get(q.id, []),
       ),
     )
@@ -88,6 +115,8 @@ async def _get_builder (db: AsyncSession, survey_id: UUID) -> SurveyBuilderRespo
         id=p.id,
         title=p.title,
         sortOrder=int(p.sort_order or 0),
+        sectionType=getattr(p, 'section_type', 'regular') or 'regular',
+        loopConfig=getattr(p, 'loop_config', None),
         questions=questions_by_page.get(p.id, []),
       ),
     )
@@ -240,17 +269,16 @@ async def get_public_pa_options (
   raise HTTPException(status_code=400, detail='Неизвестный источник')
 
 
-@router.post('/pa/{token}/submit', status_code=204)
-async def submit_public_pa (
+@router.put('/pa/{token}/draft')
+async def save_public_pa_draft (
   token: UUID,
-  payload: PublicPaSubmitRequest,
+  payload: PublicPaDraftRequest,
   db: AsyncSession = Depends(get_db),
-) -> None:
+) -> dict:
   invite = await _get_invite_or_404(db, token)
   answers = payload.answers or {}
-  stored_answers = {'mode': payload.mode, 'answers': answers}
+  stored = {'answers': answers, 'context': payload.context}
 
-  # если ссылка привязана к аудитору — переводим назначение в "в работе" при первой отправке
   if invite.auditor_id is not None:
     res = await db.execute(
       select(ProjectSurveyAuditor).where(
@@ -260,9 +288,79 @@ async def submit_public_pa (
       ),
     )
     link = res.scalar_one_or_none()
-    if link is not None and link.status != 'declined' and link.status != 'in_progress':
+    if link is not None and link.status not in ('declined', 'in_progress'):
       link.status = 'in_progress'
       link.in_progress_at = link.in_progress_at or datetime.now(timezone.utc)
+
+  attempt_res = await db.execute(
+    select(SurveyAttempt).where(
+      SurveyAttempt.invite_token == invite.token,
+      SurveyAttempt.state == 'draft',
+    ).order_by(SurveyAttempt.created_at.desc()).limit(1),
+  )
+  attempt = attempt_res.scalar_one_or_none()
+  now = datetime.now(timezone.utc)
+  if attempt:
+    attempt.answers = stored
+    attempt.last_saved_at = now
+  else:
+    attempt = SurveyAttempt(
+      invite_token=invite.token,
+      project_id=invite.project_id,
+      survey_id=invite.survey_id,
+      auditor_id=invite.auditor_id,
+      answers=stored,
+      state='draft',
+      submitted_at=None,
+      started_at=now,
+      last_saved_at=now,
+    )
+    db.add(attempt)
+  await db.commit()
+  return {'saved': True, 'attemptId': str(attempt.id)}
+
+
+@router.post('/pa/{token}/submit', status_code=204)
+async def submit_public_pa (
+  token: UUID,
+  payload: PublicPaSubmitRequest,
+  db: AsyncSession = Depends(get_db),
+) -> None:
+  invite = await _get_invite_or_404(db, token)
+  answers = payload.answers or {}
+  stored_answers = {'mode': payload.mode, 'answers': answers, 'context': payload.context}
+
+  if invite.auditor_id is not None:
+    res = await db.execute(
+      select(ProjectSurveyAuditor).where(
+        ProjectSurveyAuditor.project_id == invite.project_id,
+        ProjectSurveyAuditor.survey_id == invite.survey_id,
+        ProjectSurveyAuditor.auditor_id == invite.auditor_id,
+      ),
+    )
+    link = res.scalar_one_or_none()
+    if link is not None and link.status not in ('declined', 'in_progress'):
+      link.status = 'in_progress'
+      link.in_progress_at = link.in_progress_at or datetime.now(timezone.utc)
+
+  questions_res = await db.execute(
+    select(SurveyQuestion).where(SurveyQuestion.survey_id == invite.survey_id).order_by(SurveyQuestion.sort_order.asc()),
+  )
+  questions = list(questions_res.scalars().all())
+  qids = [q.id for q in questions]
+  options_raw: dict[UUID, list[SurveyQuestionOption]] = {}
+  if qids:
+    opt_res = await db.execute(
+      select(SurveyQuestionOption)
+      .where(SurveyQuestionOption.question_id.in_(qids))
+      .order_by(SurveyQuestionOption.sort_order.asc()),
+    )
+    for o in opt_res.scalars().all():
+      options_raw.setdefault(o.question_id, []).append(o)
+  code_to_id = {q.code: q.id for q in questions if q.code}
+  score_total, score_max, score_pct, breakdown = compute_survey_score(
+    questions, options_raw, answers, code_to_id,
+  )
 
   attempt = SurveyAttempt(
     invite_token=invite.token,
@@ -270,6 +368,12 @@ async def submit_public_pa (
     survey_id=invite.survey_id,
     auditor_id=invite.auditor_id,
     answers=stored_answers,
+    state='submitted',
+    context=payload.context,
+    score_total=score_total,
+    score_max=score_max,
+    score_percent=score_pct,
+    score_breakdown=breakdown,
     submitted_at=datetime.now(timezone.utc),
   )
   db.add(attempt)

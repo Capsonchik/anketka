@@ -86,6 +86,18 @@ export const apiRoutes = {
     surveyProjects: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/projects`,
     surveyApplyTemplate: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/apply-template`,
     surveyQuestion: (surveyId: string, questionId: string) => `${ROUTES.surveys}/${surveyId}/questions/${questionId}`,
+    surveyPages: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/pages`,
+    surveyPage: (surveyId: string, pageId: string) => `${ROUTES.surveys}/${surveyId}/pages/${pageId}`,
+    surveyQuestions: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/questions`,
+    surveyQuestionOption: (surveyId: string, questionId: string, optionId: string) =>
+      `${ROUTES.surveys}/${surveyId}/questions/${questionId}/options/${optionId}`,
+    surveyReorder: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/reorder`,
+    surveyPublish: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/publish`,
+    surveyModeration: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/moderation`,
+    surveyArchive: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/archive`,
+    surveyUnarchive: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/unarchive`,
+    surveySimulate: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/simulate`,
+    surveyAnalytics: (surveyId: string) => `${ROUTES.surveys}/${surveyId}/analytics`,
   },
   auditors: {
     auditors: `${ROUTES.auditors}`,
@@ -97,6 +109,8 @@ export const apiRoutes = {
   public: {
     pa: (token: string) => `public/pa/${token}`,
     paOptions: (token: string) => `public/pa/${token}/options`,
+    paDraft: (token: string) => `public/pa/${token}/draft`,
+    paSubmit: (token: string) => `public/pa/${token}/submit`,
   },
   priceMonitoring: {
     stats: `${ROUTES.priceMonitoring}/stats`,

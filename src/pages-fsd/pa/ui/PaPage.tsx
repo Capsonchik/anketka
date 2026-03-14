@@ -18,17 +18,36 @@ type PublicPaResponse = {
   builder: { surveyId: string; pages: SurveyPageItem[] }
 }
 
-type SurveyQuestionOptionItem = { id: string; label: string; value: string; sortOrder: number }
+type SurveyQuestionOptionItem = {
+  id: string
+  label: string
+  value: string
+  sortOrder: number
+  points?: number
+  isExclusive?: boolean
+  isNA?: boolean
+}
 type SurveyQuestionItem = {
   id: string
   type: string
+  code?: string | null
   title: string
   required: boolean
   sortOrder: number
-  config: Record<string, unknown> | null
+  config?: Record<string, unknown> | null
   options: SurveyQuestionOptionItem[]
+  allowNa?: boolean
+  allowComment?: boolean
+  dynamicTitleTemplate?: string | null
 }
-type SurveyPageItem = { id: string; title: string; sortOrder: number; questions: SurveyQuestionItem[] }
+type SurveyPageItem = {
+  id: string
+  title: string
+  sortOrder: number
+  sectionType?: 'regular' | 'loop'
+  loopConfig?: Record<string, unknown> | null
+  questions: SurveyQuestionItem[]
+}
 
 type OptionsResponse = { items: Array<{ value: string; label: string }> }
 
@@ -52,6 +71,7 @@ function getConfigString (cfg: Record<string, unknown> | null, key: string): str
 }
 
 function getCode (q: SurveyQuestionItem): string | null {
+  if (q.code && q.code.trim()) return q.code.trim()
   return getConfigString(q.config, 'code')
 }
 
@@ -93,13 +113,17 @@ export function PaPage () {
   const page = pages[pageIdx] ?? null
 
   const screeningPageIdx = useMemo(() => {
-    const idx = pages.findIndex((p) => p.title === 'Скрининг')
-    return idx >= 0 ? idx : 0
+    const loopIdx = pages.findIndex((p) => p.sectionType === 'loop')
+    if (loopIdx > 0) return 0
+    const screeningIdx = pages.findIndex((p) => p.title === 'Скрининг')
+    return screeningIdx >= 0 ? screeningIdx : 0
   }, [pages])
 
   const repeatPageIdx = useMemo(() => {
-    const idx = pages.findIndex((p) => p.title === 'Анкета')
-    return idx >= 0 ? idx : null
+    const idx = pages.findIndex((p) => p.sectionType === 'loop')
+    if (idx >= 0) return idx
+    const fallback = pages.findIndex((p) => p.title === 'Анкета')
+    return fallback >= 0 ? fallback : null
   }, [pages])
 
   const isRepeatPage = repeatPageIdx !== null && pageIdx === repeatPageIdx
@@ -262,7 +286,7 @@ export function PaPage () {
         for (const code of repeatCodes) {
           product[code] = answers[code]
         }
-        await axiosMainRequest.post(`${apiRoutes.public.pa(token)}/submit`, { mode: mode ?? 'finish', answers: { screening, product } })
+        await axiosMainRequest.post(apiRoutes.public.paSubmit(token), { mode: mode ?? 'finish', answers: { screening, product } })
 
         if (mode === 'continue') {
           setSubmittedCount((x) => x + 1)
@@ -286,7 +310,7 @@ export function PaPage () {
       }
       setValidationError(null)
 
-      await axiosMainRequest.post(`${apiRoutes.public.pa(token)}/submit`, { mode: mode ?? 'finish', answers })
+      await axiosMainRequest.post(apiRoutes.public.paSubmit(token), { mode: mode ?? 'finish', answers })
       setIsFinished(true)
     } catch (err: unknown) {
       window.alert(getErrMessage(err))
@@ -435,19 +459,50 @@ function Question ({
     )
   }
 
-  if (type === 'select') {
+  if (type === 'select' || type === 'single_choice') {
+    const selectOptions = options.map((o) => ({ value: o.value, label: o.label }))
     return (
       <div>
         <div className={styles.questionTitle}>{q.title}</div>
         <SelectPicker
           value={typeof val === 'string' ? val : null}
           onChange={(v) => onChange(code, (v as string | null) ?? null)}
-          data={options}
+          data={selectOptions}
           placeholder={isOptionsLoading ? 'Загрузка…' : 'Выберите…'}
           cleanable
           block
           onOpen={onNeedOptions}
         />
+      </div>
+    )
+  }
+
+  if (type === 'multi_choice') {
+    const arr = Array.isArray(val) ? val : typeof val === 'string' ? [val] : []
+    const set = new Set(arr.map(String))
+    return (
+      <div>
+        <div className={styles.questionTitle}>{q.title}</div>
+        <div className={styles.checkboxGroup}>
+          {options.map((o) => (
+            <Checkbox
+              key={o.value}
+              checked={set.has(o.value)}
+              onChange={(_, checked) => {
+                const next = new Set(set)
+                if (checked) next.add(o.value)
+                else next.delete(o.value)
+                if (o.isExclusive && checked) {
+                  onChange(code, [o.value])
+                  return
+                }
+                onChange(code, Array.from(next))
+              }}
+            >
+              {o.label}
+            </Checkbox>
+          ))}
+        </div>
       </div>
     )
   }
@@ -468,11 +523,48 @@ function Question ({
     )
   }
 
-  if (type === 'email' || type === 'phone' || type === 'text') {
+  if (type === 'email' || type === 'phone' || type === 'text' || type === 'short_text') {
     return (
       <div>
         <div className={styles.questionTitle}>{q.title}</div>
         <Input value={typeof val === 'string' ? val : ''} onChange={(v) => onChange(code, String(v ?? ''))} />
+      </div>
+    )
+  }
+
+  if (type === 'long_text') {
+    return (
+      <div>
+        <div className={styles.questionTitle}>{q.title}</div>
+        <Input
+          value={typeof val === 'string' ? val : ''}
+          onChange={(v) => onChange(code, String(v ?? ''))}
+          componentClass="textarea"
+          rows={4}
+        />
+      </div>
+    )
+  }
+
+  if (type === 'scale') {
+    const min = typeof (q.config?.min as number) === 'number' ? (q.config.min as number) : 1
+    const max = typeof (q.config?.max as number) === 'number' ? (q.config.max as number) : 5
+    const step = typeof (q.config?.step as number) === 'number' ? (q.config.step as number) : 1
+    const scaleOptions = Array.from({ length: Math.floor((max - min) / step) + 1 }, (_, i) => ({
+      value: String(min + i * step),
+      label: String(min + i * step),
+    }))
+    return (
+      <div>
+        <div className={styles.questionTitle}>{q.title}</div>
+        <SelectPicker
+          value={typeof val === 'string' || typeof val === 'number' ? String(val) : null}
+          onChange={(v) => onChange(code, v ? String(v) : null)}
+          data={scaleOptions}
+          placeholder="Выберите…"
+          cleanable
+          block
+        />
       </div>
     )
   }

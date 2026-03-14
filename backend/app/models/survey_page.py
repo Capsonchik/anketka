@@ -1,11 +1,13 @@
 from uuid import UUID, uuid4
 
 from sqlalchemy import ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.config import settings
 from app.db.base_class import Base
+
+SectionType = str  # regular | loop
 
 
 class SurveyPage(Base):
@@ -23,4 +25,6 @@ class SurveyPage(Base):
 
   title: Mapped[str] = mapped_column(String(250), nullable=False)
   sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
+  section_type: Mapped[str] = mapped_column(String(24), server_default='regular', nullable=False)
+  loop_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 

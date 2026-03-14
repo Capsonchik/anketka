@@ -16,6 +16,7 @@ export type {
   SurveyQuestionUpdateRequest,
   SurveyResponse,
   SurveysResponse,
+  SurveyStatus,
   SurveyUpdateRequest,
   SurveyUpdateResponse,
 } from './model/types'

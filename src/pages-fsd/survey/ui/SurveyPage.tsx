@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Checkbox, Input, Modal } from 'rsuite'
+import { Input, Modal, SelectPicker } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
@@ -12,6 +12,7 @@ import type {
   SurveyCategory,
   SurveyAttachedProjectsResponse,
   SurveyItem,
+  SurveyPageItem,
   SurveyQuestionItem,
   SurveyQuestionUpdateRequest,
   SurveyResponse,
@@ -19,6 +20,9 @@ import type {
 import { Button } from '@/shared/ui'
 
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
+import { SurveyQuestionEditorModal } from './SurveyQuestionEditorModal'
+import { SurveySectionList } from './SurveySectionList'
+import { SurveySimulatorPanel } from './SurveySimulatorPanel'
 import styles from './SurveyPage.module.css'
 
 type TemplateKey = 'price_monitoring_full' | 'price_monitoring_quick'
@@ -75,18 +79,35 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
   const [isApplying, setIsApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
 
-  const [editQuestionId, setEditQuestionId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState('')
-  const [editRequired, setEditRequired] = useState(false)
-  const [editSortOrder, setEditSortOrder] = useState<string>('')
-  const [isSavingQuestion, setIsSavingQuestion] = useState(false)
+  const [editQuestion, setEditQuestion] = useState<{ q: SurveyQuestionItem; pageTitle: string } | null>(null)
   const [questionError, setQuestionError] = useState<string | null>(null)
+
+  const [addSectionOpen, setAddSectionOpen] = useState(false)
+  const [addSectionTitle, setAddSectionTitle] = useState('')
+  const [addSectionType, setAddSectionType] = useState<'regular' | 'loop'>('regular')
+  const [isAddingSection, setIsAddingSection] = useState(false)
+
+  const [addQuestionOpen, setAddQuestionOpen] = useState(false)
+  const [addQuestionPageId, setAddQuestionPageId] = useState<string>('')
+  const [addQuestionTitle, setAddQuestionTitle] = useState('')
+  const [addQuestionType, setAddQuestionType] = useState('short_text')
+  const [isAddingQuestion, setIsAddingQuestion] = useState(false)
+
+  const [simulatorOpen, setSimulatorOpen] = useState(false)
+  const [analytics, setAnalytics] = useState<{
+    totalAttempts: number
+    completedAttempts: number
+    avgScorePercent: number | null
+    scoreDistribution: Array<{ bucket: string; count: number }>
+  } | null>(null)
 
   const templateKey = (survey?.templateKey ?? null) as string | null
 
-  const shouldPickTemplate = survey?.category === 'price_monitoring' && !templateKey
+  const shouldPickTemplate = survey?.category === 'price_monitoring' && !templateKey && (builder?.pages?.length ?? 0) === 0
 
   const categoryLabel = useMemo(() => formatCategory(survey?.category ?? null), [survey?.category])
+
+  const canEdit = (survey?.status ?? 'created') !== 'published'
 
   async function copyTestLink () {
     if (!projectIdFromQuery) return
@@ -136,6 +157,20 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
     }
   }
 
+  async function loadAnalytics () {
+    try {
+      const res = await axiosMainRequest.get<{
+        totalAttempts: number
+        completedAttempts: number
+        avgScorePercent: number | null
+        scoreDistribution: Array<{ bucket: string; count: number }>
+      }>(apiRoutes.surveys.surveyAnalytics(surveyId))
+      setAnalytics(res.data)
+    } catch {
+      setAnalytics(null)
+    }
+  }
+
   useEffect(() => {
     loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,59 +210,99 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
     return map
   }, [builder])
 
-  const editQuestion = editQuestionId ? questionsById.get(editQuestionId)?.question ?? null : null
-
-  function openEditQuestion (questionId: string) {
-    const q = questionsById.get(questionId)?.question
-    if (!q) return
+  const openEditQuestion = useCallback((q: SurveyQuestionItem, pageTitle: string) => {
     setQuestionError(null)
-    setEditQuestionId(questionId)
-    setEditTitle(q.title)
-    setEditRequired(Boolean(q.required))
-    setEditSortOrder(String(q.sortOrder ?? ''))
+    setEditQuestion({ q, pageTitle })
+  }, [])
+
+  const closeEditQuestion = useCallback(() => {
+    setEditQuestion(null)
+    setQuestionError(null)
+  }, [])
+
+  const saveEditQuestion = useCallback(async (payload: SurveyQuestionUpdateRequest) => {
+    if (!editQuestion) return
+    setQuestionError(null)
+    await axiosMainRequest.patch(apiRoutes.surveys.surveyQuestion(surveyId, editQuestion.q.id), payload)
+    await loadBuilder()
+    closeEditQuestion()
+  }, [editQuestion, surveyId])
+
+  async function addSection () {
+    setQuestionError(null)
+    const title = addSectionTitle.trim()
+    if (!title) {
+      setQuestionError('Введите название секции')
+      return
+    }
+    setIsAddingSection(true)
+    try {
+      await axiosMainRequest.post(apiRoutes.surveys.surveyPages(surveyId), {
+        title,
+        sectionType: addSectionType,
+      })
+      await loadBuilder()
+      setAddSectionOpen(false)
+      setAddSectionTitle('')
+    } catch (err: unknown) {
+      setQuestionError(getApiErrorMessage(err))
+    } finally {
+      setIsAddingSection(false)
+    }
   }
 
-  function closeEditQuestion () {
-    if (isSavingQuestion) return
-    setEditQuestionId(null)
-    setQuestionError(null)
+  async function addQuestion (pageId: string) {
+    setAddQuestionPageId(pageId)
+    setAddQuestionTitle('')
+    setAddQuestionType('short_text')
+    setAddQuestionOpen(true)
   }
 
-  async function submitEditQuestion () {
-    if (!editQuestionId) return
-    setQuestionError(null)
-
-    const title = editTitle.trim()
+  async function submitAddQuestion () {
+    const title = addQuestionTitle.trim()
     if (!title) {
       setQuestionError('Введите формулировку вопроса')
       return
     }
-
-    const sortRaw = editSortOrder.trim()
-    let sortOrder: number | null = null
-    if (sortRaw) {
-      const parsed = Number(sortRaw)
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        setQuestionError('Порядок должен быть числом ≥ 0')
-        return
-      }
-      sortOrder = parsed
-    }
-
-    setIsSavingQuestion(true)
+    setIsAddingQuestion(true)
+    setQuestionError(null)
     try {
-      const payload: SurveyQuestionUpdateRequest = {
+      await axiosMainRequest.post(apiRoutes.surveys.surveyQuestions(surveyId), {
+        pageId: addQuestionPageId,
+        type: addQuestionType,
         title,
-        required: Boolean(editRequired),
-        sortOrder,
-      }
-      await axiosMainRequest.patch(apiRoutes.surveys.surveyQuestion(surveyId, editQuestionId), payload)
+      })
       await loadBuilder()
-      closeEditQuestion()
+      setAddQuestionOpen(false)
     } catch (err: unknown) {
       setQuestionError(getApiErrorMessage(err))
     } finally {
-      setIsSavingQuestion(false)
+      setIsAddingQuestion(false)
+    }
+  }
+
+  async function reorder (pageIds: string[], questionIds: string[]) {
+    try {
+      await axiosMainRequest.post(apiRoutes.surveys.surveyReorder(surveyId), {
+        pageIds: pageIds.length ? pageIds : undefined,
+        questionIds: questionIds.length ? questionIds : undefined,
+      })
+      await loadBuilder()
+    } catch (err: unknown) {
+      setQuestionError(getApiErrorMessage(err))
+    }
+  }
+
+  async function deleteSection (pageId: string) {
+    const page = builder?.pages?.find((p) => p.id === pageId)
+    const ok = window.confirm(page ? `Удалить секцию «${page.title}» и все вопросы?` : 'Удалить секцию?')
+    if (!ok) return
+    setQuestionError(null)
+    try {
+      await axiosMainRequest.delete(apiRoutes.surveys.surveyPage(surveyId, pageId))
+      await loadBuilder()
+    } catch (err: unknown) {
+      setQuestionError(getApiErrorMessage(err))
     }
   }
 
@@ -352,119 +427,157 @@ export function SurveyPage ({ surveyId }: { surveyId: string }) {
           </section>
         ) : null}
 
-        {!isLoading && !error && survey && !shouldPickTemplate ? (
+        {!isLoading && !error && survey && !shouldPickTemplate && builder ? (
           <section>
-            <div className={styles.hint}>
-              {survey.category === 'price_monitoring'
-                ? `Шаблон: ${templateKey || '—'}`
-                : 'Категория без шаблонов (пока отображаем структуру).'}
+            <div className={styles.toolbar}>
+              <Button type="button" variant="ghost" onClick={() => setSimulatorOpen(true)}>
+                Симуляция
+              </Button>
+              <Button type="button" variant="ghost" onClick={loadAnalytics}>
+                Аналитика
+              </Button>
             </div>
 
-            {questionError ? <div className={styles.error} style={{ marginTop: 10 }}>{questionError}</div> : null}
+            {analytics && (
+              <div className={styles.analyticsBlock}>
+                <div className={styles.analyticsRow}>
+                  <span>Прохождений:</span>
+                  <strong>{analytics.totalAttempts}</strong>
+                </div>
+                <div className={styles.analyticsRow}>
+                  <span>Завершённых:</span>
+                  <strong>{analytics.completedAttempts}</strong>
+                </div>
+                {analytics.avgScorePercent != null && (
+                  <div className={styles.analyticsRow}>
+                    <span>Средний балл:</span>
+                    <strong>{analytics.avgScorePercent.toFixed(1)}%</strong>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className={styles.tableWrap} style={{ marginTop: 12 }}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th className={styles.th}>Страница</th>
-                    <th className={styles.th}>Вопрос</th>
-                    <th className={styles.th}>Тип</th>
-                    <th className={styles.th} style={{ width: 110 }}>Обяз.</th>
-                    <th className={styles.th} style={{ width: 112 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {(builder?.pages ?? []).flatMap((p) => {
-                    if (p.questions.length === 0) {
-                      return (
-                        <tr key={`p:${p.id}:empty`}>
-                          <td className={styles.td}>{p.title}</td>
-                          <td className={styles.tdWrap}>—</td>
-                          <td className={styles.td}>—</td>
-                          <td className={styles.td}>—</td>
-                          <td className={styles.td} />
-                        </tr>
-                      )
-                    }
-                    return p.questions.map((q) => (
-                      <tr key={`q:${q.id}`}>
-                        <td className={styles.td}>{p.title}</td>
-                        <td className={styles.tdWrap}>{q.title}</td>
-                        <td className={styles.td}>{q.type}</td>
-                        <td className={styles.td}>{q.required ? 'Да' : 'Нет'}</td>
-                        <td className={styles.td}>
-                          <div className={styles.rowActions}>
-                            <button
-                              type="button"
-                              className={styles.iconButton}
-                              aria-label="Редактировать"
-                              onClick={() => openEditQuestion(q.id)}
-                            >
-                              <EditIcon />
-                            </button>
-                            <button
-                              type="button"
-                              className={`${styles.iconButton} ${styles.iconButtonDanger}`.trim()}
-                              aria-label="Удалить"
-                              onClick={() => deleteQuestion(q.id)}
-                            >
-                              <TrashIcon />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  })}
-                  {builder && builder.pages.length === 0 ? (
-                    <tr>
-                      <td className={styles.td} colSpan={5}>Структура ещё не создана</td>
-                    </tr>
-                  ) : null}
-                  {!builder ? (
-                    <tr>
-                      <td className={styles.td} colSpan={5}>Загрузка структуры…</td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
+            {questionError ? <div className={styles.error} style={{ marginBottom: 10 }}>{questionError}</div> : null}
 
-            <Modal open={Boolean(editQuestionId)} onClose={closeEditQuestion} size="sm">
+            <SurveySectionList
+              builder={builder}
+              canEdit={canEdit}
+              onAddSection={() => setAddSectionOpen(true)}
+              onAddQuestion={addQuestion}
+              onEditQuestion={openEditQuestion}
+              onDeleteQuestion={deleteQuestion}
+              onDeleteSection={deleteSection}
+              onReorder={reorder}
+            />
+
+            <Modal open={addSectionOpen} onClose={() => !isAddingSection && setAddSectionOpen(false)} size="xs">
               <Modal.Header>
-                <Modal.Title>Редактировать вопрос</Modal.Title>
+                <Modal.Title>Добавить секцию</Modal.Title>
               </Modal.Header>
               <Modal.Body>
-                <div className={styles.hint} style={{ marginBottom: 10 }}>
-                  {editQuestion ? <span>{editQuestion.type} · {questionsById.get(editQuestion.id)?.pageTitle}</span> : null}
-                </div>
-
                 <div style={{ display: 'grid', gap: 12 }}>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>Формулировка</div>
-                    <Input value={editTitle} onChange={(v) => setEditTitle(String(v ?? ''))} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Название *</div>
+                    <Input value={addSectionTitle} onChange={(v) => setAddSectionTitle(String(v ?? ''))} placeholder="Например: Скрининг" />
                   </div>
-
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>Порядок (sortOrder)</div>
-                    <Input value={editSortOrder} onChange={(v) => setEditSortOrder(String(v ?? ''))} placeholder="Например: 1" />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Тип</div>
+                    <SelectPicker
+                      value={addSectionType}
+                      onChange={(v) => setAddSectionType((v as 'regular' | 'loop') ?? 'regular')}
+                      data={[
+                        { value: 'regular', label: 'Обычная' },
+                        { value: 'loop', label: 'Цикличная (повтор по элементам)' },
+                      ]}
+                      cleanable={false}
+                      searchable={false}
+                      block
+                    />
                   </div>
-
-                  <Checkbox checked={editRequired} onChange={(_, checked) => setEditRequired(Boolean(checked))}>
-                    Обязательный вопрос
-                  </Checkbox>
                 </div>
-
                 {questionError ? <div className={styles.error} style={{ marginTop: 10 }}>{questionError}</div> : null}
               </Modal.Body>
               <Modal.Footer>
-                <Button type="button" variant="secondary" onClick={closeEditQuestion} disabled={isSavingQuestion}>
+                <Button type="button" variant="secondary" onClick={() => setAddSectionOpen(false)} disabled={isAddingSection}>
                   Отмена
                 </Button>
-                <Button type="button" variant="primary" onClick={submitEditQuestion} disabled={isSavingQuestion}>
-                  Сохранить
+                <Button type="button" variant="primary" onClick={addSection} disabled={isAddingSection}>
+                  Добавить
                 </Button>
               </Modal.Footer>
             </Modal>
+
+            <Modal open={addQuestionOpen} onClose={() => !isAddingQuestion && setAddQuestionOpen(false)} size="sm">
+              <Modal.Header>
+                <Modal.Title>Добавить вопрос</Modal.Title>
+              </Modal.Header>
+              <Modal.Body>
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Секция</div>
+                    <SelectPicker
+                      value={addQuestionPageId}
+                      onChange={(v) => setAddQuestionPageId(String(v ?? ''))}
+                      data={(builder?.pages ?? []).map((p) => ({ value: p.id, label: p.title }))}
+                      cleanable={false}
+                      searchable={false}
+                      block
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Тип вопроса *</div>
+                    <SelectPicker
+                      value={addQuestionType}
+                      onChange={(v) => setAddQuestionType(String(v ?? 'short_text'))}
+                      data={[
+                        { value: 'short_text', label: 'Короткий текст' },
+                        { value: 'long_text', label: 'Длинный текст' },
+                        { value: 'number', label: 'Число' },
+                        { value: 'email', label: 'Email' },
+                        { value: 'single_choice', label: 'Одиночный выбор' },
+                        { value: 'multi_choice', label: 'Множественный выбор' },
+                        { value: 'scale', label: 'Шкала' },
+                        { value: 'matrix', label: 'Табличный' },
+                        { value: 'date', label: 'Дата' },
+                        { value: 'time', label: 'Время' },
+                        { value: 'rank', label: 'Ранг' },
+                        { value: 'photo', label: 'Фото' },
+                      ]}
+                      cleanable={false}
+                      searchable={false}
+                      block
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Формулировка *</div>
+                    <Input value={addQuestionTitle} onChange={(v) => setAddQuestionTitle(String(v ?? ''))} placeholder="Текст вопроса" />
+                  </div>
+                </div>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button type="button" variant="secondary" onClick={() => setAddQuestionOpen(false)} disabled={isAddingQuestion}>
+                  Отмена
+                </Button>
+                <Button type="button" variant="primary" onClick={submitAddQuestion} disabled={isAddingQuestion}>
+                  Добавить
+                </Button>
+              </Modal.Footer>
+            </Modal>
+
+            <SurveyQuestionEditorModal
+              open={Boolean(editQuestion)}
+              question={editQuestion?.q ?? null}
+              pageTitle={editQuestion?.pageTitle ?? ''}
+              onClose={closeEditQuestion}
+              onSave={saveEditQuestion}
+            />
+
+            <SurveySimulatorPanel
+              surveyId={surveyId}
+              builder={builder}
+              open={simulatorOpen}
+              onClose={() => setSimulatorOpen(false)}
+            />
           </section>
         ) : null}
       </div>

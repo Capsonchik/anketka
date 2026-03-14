@@ -14,23 +14,33 @@ from app.models.survey_question import SurveyQuestion
 from app.models.survey_question_option import SurveyQuestionOption
 from app.models.user import User
 from app.schemas.surveys import (
+  SurveyAnalyticsResponse,
   SurveyApplyTemplateRequest,
+  SurveyAttachedProjectItem,
+  SurveyAttachedProjectsResponse,
   SurveyBuilderResponse,
   SurveyCreateRequest,
   SurveyCreateResponse,
   SurveyItem,
+  SurveyPageCreateRequest,
   SurveyPageItem,
+  SurveyPageUpdateRequest,
+  SurveyQuestionCreateRequest,
   SurveyQuestionItem,
+  SurveyQuestionOptionCreateRequest,
   SurveyQuestionOptionItem,
+  SurveyQuestionOptionUpdateRequest,
   SurveyQuestionResponse,
   SurveyQuestionUpdateRequest,
+  SurveyReorderRequest,
   SurveyResponse,
+  SurveySimulateRequest,
+  SurveySimulateResponse,
   SurveysResponse,
   SurveyUpdateRequest,
   SurveyUpdateResponse,
-  SurveyAttachedProjectItem,
-  SurveyAttachedProjectsResponse,
 )
+from app.services.scoring import compute_survey_score
 
 
 router = APIRouter(dependencies=[Depends(require_page_permission('page.survey-builder.view'))])
@@ -40,7 +50,18 @@ def _company_id (current_user: User) -> UUID:
 
 
 def to_survey_item (s: Survey) -> SurveyItem:
-  return SurveyItem(id=s.id, title=s.title, category=s.category, templateKey=s.template_key, createdAt=s.created_at)
+  return SurveyItem(
+    id=s.id,
+    title=s.title,
+    category=s.category,
+    templateKey=s.template_key,
+    status=getattr(s, 'status', 'created') or 'created',
+    publishedAt=getattr(s, 'published_at', None),
+    archivedAt=getattr(s, 'archived_at', None),
+    version=getattr(s, 'version', 1) or 1,
+    contextBindings=getattr(s, 'context_bindings', None),
+    createdAt=s.created_at,
+  )
 
 
 async def _get_survey_or_404 (db: AsyncSession, current_user: User, survey_id: UUID) -> Survey:
@@ -73,10 +94,11 @@ def _template_quick (survey_id: UUID) -> tuple[list[SurveyPage], list[SurveyQues
   '',
   response_model=SurveysResponse,
   summary='Список анкет',
-  description='Возвращает анкеты текущей компании.',
+  description='Возвращает анкеты текущей компании со статусами.',
 )
 async def list_surveys (
   q: str | None = None,
+  status: str | None = None,
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> SurveysResponse:
@@ -84,6 +106,8 @@ async def list_surveys (
   if q:
     like = f'%{q.strip()}%'
     stmt = stmt.where(Survey.title.ilike(like))
+  if status and status in ('created', 'moderation', 'published', 'archived'):
+    stmt = stmt.where(Survey.status == status)
   res = await db.execute(stmt)
   return SurveysResponse(items=[to_survey_item(x) for x in res.scalars().all()])
 
@@ -130,6 +154,7 @@ async def get_survey_builder (
 
   qids = [q.id for q in questions]
   options_by_q: dict[UUID, list[SurveyQuestionOptionItem]] = {}
+  options_raw: dict[UUID, list[SurveyQuestionOption]] = {}
   if qids:
     opt_res = await db.execute(
       select(SurveyQuestionOption)
@@ -137,23 +162,45 @@ async def get_survey_builder (
       .order_by(SurveyQuestionOption.question_id.asc(), SurveyQuestionOption.sort_order.asc()),
     )
     for opt in opt_res.scalars().all():
+      options_raw.setdefault(opt.question_id, []).append(opt)
       options_by_q.setdefault(opt.question_id, []).append(
-        SurveyQuestionOptionItem(id=opt.id, label=opt.label, value=opt.value, sortOrder=int(opt.sort_order or 0)),
+        SurveyQuestionOptionItem(
+          id=opt.id,
+          label=opt.label,
+          value=opt.value,
+          sortOrder=int(opt.sort_order or 0),
+          points=getattr(opt, 'points', 0) or 0,
+          isExclusive=getattr(opt, 'is_exclusive', False) or False,
+          isNA=getattr(opt, 'is_na', False) or False,
+        ),
       )
+
+  def to_q_item(q: SurveyQuestion, opts: list[SurveyQuestionOptionItem]) -> SurveyQuestionItem:
+    return SurveyQuestionItem(
+      id=q.id,
+      type=q.type,
+      code=getattr(q, 'code', None),
+      title=q.title,
+      description=getattr(q, 'description', None),
+      required=bool(q.required),
+      sortOrder=int(q.sort_order or 0),
+      config=q.config,
+      validation=getattr(q, 'validation', None),
+      logic=getattr(q, 'logic', None),
+      scoring=getattr(q, 'scoring', None),
+      display=getattr(q, 'display', None),
+      media=getattr(q, 'media', None),
+      analyticsKey=getattr(q, 'analytics_key', None),
+      weight=float(getattr(q, 'weight', 0) or 0),
+      allowNa=getattr(q, 'allow_na', False) or False,
+      allowComment=getattr(q, 'allow_comment', False) or False,
+      dynamicTitleTemplate=getattr(q, 'dynamic_title_template', None),
+      options=opts,
+    )
 
   questions_by_page: dict[UUID, list[SurveyQuestionItem]] = {}
   for q in questions:
-    questions_by_page.setdefault(q.page_id, []).append(
-      SurveyQuestionItem(
-        id=q.id,
-        type=q.type,
-        title=q.title,
-        required=bool(q.required),
-        sortOrder=int(q.sort_order or 0),
-        config=q.config,
-        options=options_by_q.get(q.id, []),
-      ),
-    )
+    questions_by_page.setdefault(q.page_id, []).append(to_q_item(q, options_by_q.get(q.id, [])))
 
   pages_out: list[SurveyPageItem] = []
   for p in pages:
@@ -162,11 +209,24 @@ async def get_survey_builder (
         id=p.id,
         title=p.title,
         sortOrder=int(p.sort_order or 0),
+        sectionType=getattr(p, 'section_type', 'regular') or 'regular',
+        loopConfig=getattr(p, 'loop_config', None),
         questions=questions_by_page.get(p.id, []),
       ),
     )
 
-  return SurveyBuilderResponse(surveyId=survey_id, pages=pages_out)
+  survey = (await db.execute(select(Survey).where(Survey.id == survey_id))).scalar_one()
+  max_score: float | None = None
+  if questions:
+    _, sm, _ = compute_survey_score(questions, options_raw, {}, None)
+    max_score = float(sm) if sm else None
+
+  return SurveyBuilderResponse(
+    surveyId=survey_id,
+    pages=pages_out,
+    maxScore=max_score,
+    status=getattr(survey, 'status', 'created') or 'created',
+  )
 
 
 @router.get(
@@ -199,10 +259,22 @@ def _to_question_item (q: SurveyQuestion, options: list[SurveyQuestionOptionItem
   return SurveyQuestionItem(
     id=q.id,
     type=q.type,
+    code=getattr(q, 'code', None),
     title=q.title,
+    description=getattr(q, 'description', None),
     required=bool(q.required),
     sortOrder=int(q.sort_order or 0),
     config=q.config,
+    validation=getattr(q, 'validation', None),
+    logic=getattr(q, 'logic', None),
+    scoring=getattr(q, 'scoring', None),
+    display=getattr(q, 'display', None),
+    media=getattr(q, 'media', None),
+    analyticsKey=getattr(q, 'analytics_key', None),
+    weight=float(getattr(q, 'weight', 0) or 0),
+    allowNa=getattr(q, 'allow_na', False) or False,
+    allowComment=getattr(q, 'allow_comment', False) or False,
+    dynamicTitleTemplate=getattr(q, 'dynamic_title_template', None),
     options=options,
   )
 
@@ -233,6 +305,30 @@ async def update_survey_question (
   q.required = bool(payload.required)
   if payload.sortOrder is not None:
     q.sort_order = int(payload.sortOrder)
+  if payload.code is not None:
+    q.code = payload.code.strip() or None
+  if payload.description is not None:
+    q.description = payload.description.strip() or None
+  if payload.validation is not None:
+    q.validation = payload.validation
+  if payload.logic is not None:
+    q.logic = payload.logic
+  if payload.scoring is not None:
+    q.scoring = payload.scoring
+  if payload.display is not None:
+    q.display = payload.display
+  if payload.media is not None:
+    q.media = payload.media
+  if payload.analyticsKey is not None:
+    q.analytics_key = payload.analyticsKey.strip() or None
+  if payload.weight is not None:
+    q.weight = payload.weight
+  if payload.allowNa is not None:
+    q.allow_na = payload.allowNa
+  if payload.allowComment is not None:
+    q.allow_comment = payload.allowComment
+  if payload.dynamicTitleTemplate is not None:
+    q.dynamic_title_template = payload.dynamicTitleTemplate.strip() or None
 
   await db.commit()
 
@@ -242,7 +338,15 @@ async def update_survey_question (
     .order_by(SurveyQuestionOption.sort_order.asc()),
   )
   options = [
-    SurveyQuestionOptionItem(id=o.id, label=o.label, value=o.value, sortOrder=int(o.sort_order or 0))
+    SurveyQuestionOptionItem(
+      id=o.id,
+      label=o.label,
+      value=o.value,
+      sortOrder=int(o.sort_order or 0),
+      points=getattr(o, 'points', 0) or 0,
+      isExclusive=getattr(o, 'is_exclusive', False) or False,
+      isNA=getattr(o, 'is_na', False) or False,
+    )
     for o in opt_res.scalars().all()
   ]
 
@@ -619,6 +723,498 @@ async def update_survey (
   out = await db.execute(select(Survey).where(Survey.id == survey.id))
   survey = out.scalar_one()
   return SurveyUpdateResponse(survey=to_survey_item(survey))
+
+
+@router.post(
+  '/{survey_id}/pages',
+  response_model=SurveyBuilderResponse,
+  status_code=status.HTTP_201_CREATED,
+  summary='Создать секцию',
+)
+async def create_survey_page (
+  payload: SurveyPageCreateRequest,
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyBuilderResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+  max_order = await db.execute(
+    select(func.coalesce(func.max(SurveyPage.sort_order), 0)).where(SurveyPage.survey_id == survey_id),
+  )
+  so = int((max_order.scalar() or 0)) + 1
+  page = SurveyPage(
+    survey_id=survey_id,
+    title=payload.title.strip(),
+    sort_order=so,
+    section_type=payload.sectionType or 'regular',
+    loop_config=payload.loopConfig,
+  )
+  db.add(page)
+  await db.commit()
+  return await get_survey_builder(survey_id, db, current_user)
+
+
+@router.patch(
+  '/{survey_id}/pages/{page_id}',
+  response_model=SurveyBuilderResponse,
+  summary='Обновить секцию',
+)
+async def update_survey_page (
+  payload: SurveyPageUpdateRequest,
+  survey_id: UUID,
+  page_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyBuilderResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+  res = await db.execute(select(SurveyPage).where(SurveyPage.id == page_id, SurveyPage.survey_id == survey_id))
+  page = res.scalar_one_or_none()
+  if page is None:
+    raise HTTPException(status_code=404, detail='Секция не найдена')
+  if payload.title is not None:
+    page.title = payload.title.strip()
+  if payload.sectionType is not None:
+    page.section_type = payload.sectionType
+  if payload.loopConfig is not None:
+    page.loop_config = payload.loopConfig
+  if payload.sortOrder is not None:
+    page.sort_order = int(payload.sortOrder)
+  await db.commit()
+  return await get_survey_builder(survey_id, db, current_user)
+
+
+@router.delete(
+  '/{survey_id}/pages/{page_id}',
+  status_code=status.HTTP_204_NO_CONTENT,
+  summary='Удалить секцию',
+)
+async def delete_survey_page (
+  survey_id: UUID,
+  page_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> None:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+  res = await db.execute(select(SurveyPage).where(SurveyPage.id == page_id, SurveyPage.survey_id == survey_id))
+  page = res.scalar_one_or_none()
+  if page is None:
+    raise HTTPException(status_code=404, detail='Секция не найдена')
+  await db.delete(page)
+  await db.commit()
+  return None
+
+
+@router.post(
+  '/{survey_id}/questions',
+  response_model=SurveyQuestionResponse,
+  status_code=status.HTTP_201_CREATED,
+  summary='Создать вопрос',
+)
+async def create_survey_question (
+  payload: SurveyQuestionCreateRequest,
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyQuestionResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+  res = await db.execute(select(SurveyPage).where(SurveyPage.id == payload.pageId, SurveyPage.survey_id == survey_id))
+  if res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=404, detail='Секция не найдена')
+  max_order = await db.execute(
+    select(func.coalesce(func.max(SurveyQuestion.sort_order), 0)).where(SurveyQuestion.page_id == payload.pageId),
+  )
+  so = int((max_order.scalar() or 0)) + 1
+  if payload.sortOrder is not None:
+    so = payload.sortOrder
+  q = SurveyQuestion(
+    survey_id=survey_id,
+    page_id=payload.pageId,
+    type=payload.type,
+    code=payload.code.strip() if payload.code else None,
+    title=payload.title.strip(),
+    description=payload.description.strip() if payload.description else None,
+    required=payload.required,
+    sort_order=so,
+    config=payload.config,
+    validation=payload.validation,
+    logic=payload.logic,
+    scoring=payload.scoring,
+    display=payload.display,
+    media=payload.media,
+    analytics_key=payload.analyticsKey.strip() if payload.analyticsKey else None,
+    weight=payload.weight,
+    allow_na=payload.allowNa,
+    allow_comment=payload.allowComment,
+    dynamic_title_template=payload.dynamicTitleTemplate.strip() if payload.dynamicTitleTemplate else None,
+  )
+  db.add(q)
+  await db.commit()
+  await db.refresh(q)
+  return SurveyQuestionResponse(question=_to_question_item(q, []))
+
+
+@router.post(
+  '/{survey_id}/questions/{question_id}/options',
+  response_model=SurveyQuestionResponse,
+  status_code=status.HTTP_201_CREATED,
+  summary='Добавить опцию к вопросу',
+)
+async def create_survey_question_option (
+  payload: SurveyQuestionOptionCreateRequest,
+  survey_id: UUID,
+  question_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyQuestionResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+  res = await db.execute(
+    select(SurveyQuestion).where(SurveyQuestion.id == question_id, SurveyQuestion.survey_id == survey_id),
+  )
+  q = res.scalar_one_or_none()
+  if q is None:
+    raise HTTPException(status_code=404, detail='Вопрос не найден')
+  max_order = await db.execute(
+    select(func.coalesce(func.max(SurveyQuestionOption.sort_order), 0)).where(SurveyQuestionOption.question_id == question_id),
+  )
+  so = int((max_order.scalar() or 0)) + 1
+  if payload.sortOrder is not None:
+    so = payload.sortOrder
+  opt = SurveyQuestionOption(
+    question_id=question_id,
+    label=payload.label.strip(),
+    value=payload.value.strip(),
+    sort_order=so,
+    points=payload.points,
+    is_exclusive=payload.isExclusive,
+    is_na=payload.isNA,
+  )
+  db.add(opt)
+  await db.commit()
+  opt_res = await db.execute(
+    select(SurveyQuestionOption)
+    .where(SurveyQuestionOption.question_id == question_id)
+    .order_by(SurveyQuestionOption.sort_order.asc()),
+  )
+  options = [
+    SurveyQuestionOptionItem(
+      id=o.id,
+      label=o.label,
+      value=o.value,
+      sortOrder=int(o.sort_order or 0),
+      points=getattr(o, 'points', 0) or 0,
+      isExclusive=getattr(o, 'is_exclusive', False) or False,
+      isNA=getattr(o, 'is_na', False) or False,
+    )
+    for o in opt_res.scalars().all()
+  ]
+  await db.refresh(q)
+  return SurveyQuestionResponse(question=_to_question_item(q, options))
+
+
+@router.patch(
+  '/{survey_id}/questions/{question_id}/options/{option_id}',
+  response_model=SurveyQuestionResponse,
+  summary='Обновить опцию',
+)
+async def update_survey_question_option (
+  payload: SurveyQuestionOptionUpdateRequest,
+  survey_id: UUID,
+  question_id: UUID,
+  option_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyQuestionResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+  res = await db.execute(
+    select(SurveyQuestionOption).where(
+      SurveyQuestionOption.id == option_id,
+      SurveyQuestionOption.question_id == question_id,
+    ),
+  )
+  opt = res.scalar_one_or_none()
+  if opt is None:
+    raise HTTPException(status_code=404, detail='Опция не найдена')
+  q_res = await db.execute(select(SurveyQuestion).where(SurveyQuestion.id == question_id))
+  q = q_res.scalar_one_or_none()
+  if q is None or q.survey_id != survey_id:
+    raise HTTPException(status_code=404, detail='Вопрос не найден')
+  if payload.label is not None:
+    opt.label = payload.label.strip()
+  if payload.value is not None:
+    opt.value = payload.value.strip()
+  if payload.sortOrder is not None:
+    opt.sort_order = int(payload.sortOrder)
+  if payload.points is not None:
+    opt.points = payload.points
+  if payload.isExclusive is not None:
+    opt.is_exclusive = payload.isExclusive
+  if payload.isNA is not None:
+    opt.is_na = payload.isNA
+  await db.commit()
+  opt_res = await db.execute(
+    select(SurveyQuestionOption)
+    .where(SurveyQuestionOption.question_id == question_id)
+    .order_by(SurveyQuestionOption.sort_order.asc()),
+  )
+  options = [
+    SurveyQuestionOptionItem(
+      id=o.id,
+      label=o.label,
+      value=o.value,
+      sortOrder=int(o.sort_order or 0),
+      points=getattr(o, 'points', 0) or 0,
+      isExclusive=getattr(o, 'is_exclusive', False) or False,
+      isNA=getattr(o, 'is_na', False) or False,
+    )
+    for o in opt_res.scalars().all()
+  ]
+  await db.refresh(q)
+  return SurveyQuestionResponse(question=_to_question_item(q, options))
+
+
+@router.delete(
+  '/{survey_id}/questions/{question_id}/options/{option_id}',
+  status_code=status.HTTP_204_NO_CONTENT,
+  summary='Удалить опцию',
+)
+async def delete_survey_question_option (
+  survey_id: UUID,
+  question_id: UUID,
+  option_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> None:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+  res = await db.execute(
+    select(SurveyQuestionOption).where(
+      SurveyQuestionOption.id == option_id,
+      SurveyQuestionOption.question_id == question_id,
+    ),
+  )
+  opt = res.scalar_one_or_none()
+  if opt is None:
+    raise HTTPException(status_code=404, detail='Опция не найдена')
+  q_res = await db.execute(select(SurveyQuestion).where(SurveyQuestion.id == question_id))
+  q = q_res.scalar_one_or_none()
+  if q is None or q.survey_id != survey_id:
+    raise HTTPException(status_code=404, detail='Вопрос не найден')
+  await db.delete(opt)
+  await db.commit()
+  return None
+
+
+@router.post(
+  '/{survey_id}/reorder',
+  response_model=SurveyBuilderResponse,
+  summary='Изменить порядок секций/вопросов',
+)
+async def reorder_survey (
+  payload: SurveyReorderRequest,
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyBuilderResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    raise HTTPException(status_code=400, detail='Нельзя редактировать опубликованную анкету')
+  if payload.pageIds:
+    for idx, pid in enumerate(payload.pageIds):
+      res = await db.execute(select(SurveyPage).where(SurveyPage.id == pid, SurveyPage.survey_id == survey_id))
+      p = res.scalar_one_or_none()
+      if p:
+        p.sort_order = idx
+  if payload.questionIds:
+    for idx, qid in enumerate(payload.questionIds):
+      res = await db.execute(select(SurveyQuestion).where(SurveyQuestion.id == qid, SurveyQuestion.survey_id == survey_id))
+      q = res.scalar_one_or_none()
+      if q:
+        q.sort_order = idx
+  await db.commit()
+  return await get_survey_builder(survey_id, db, current_user)
+
+
+@router.post(
+  '/{survey_id}/publish',
+  response_model=SurveyResponse,
+  summary='Опубликовать анкету',
+)
+async def publish_survey (
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyResponse:
+  from datetime import datetime, timezone
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') == 'published':
+    return SurveyResponse(survey=to_survey_item(survey))
+  survey.status = 'published'
+  survey.published_at = datetime.now(timezone.utc)
+  await db.commit()
+  await db.refresh(survey)
+  return SurveyResponse(survey=to_survey_item(survey))
+
+
+@router.post(
+  '/{survey_id}/moderation',
+  response_model=SurveyResponse,
+  summary='Отправить на модерацию',
+)
+async def send_to_moderation (
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') in ('created', 'published'):
+    survey.status = 'moderation'
+    await db.commit()
+    await db.refresh(survey)
+  return SurveyResponse(survey=to_survey_item(survey))
+
+
+@router.post(
+  '/{survey_id}/archive',
+  response_model=SurveyResponse,
+  summary='Архивировать анкету',
+)
+async def archive_survey (
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyResponse:
+  from datetime import datetime, timezone
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  survey.status = 'archived'
+  survey.archived_at = datetime.now(timezone.utc)
+  await db.commit()
+  await db.refresh(survey)
+  return SurveyResponse(survey=to_survey_item(survey))
+
+
+@router.post(
+  '/{survey_id}/unarchive',
+  response_model=SurveyResponse,
+  summary='Восстановить из архива',
+)
+async def unarchive_survey (
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyResponse:
+  survey = await _get_survey_or_404(db, current_user, survey_id)
+  if getattr(survey, 'status', 'created') != 'archived':
+    return SurveyResponse(survey=to_survey_item(survey))
+  survey.status = 'created'
+  survey.archived_at = None
+  await db.commit()
+  await db.refresh(survey)
+  return SurveyResponse(survey=to_survey_item(survey))
+
+
+@router.get(
+  '/{survey_id}/analytics',
+  response_model=SurveyAnalyticsResponse,
+  summary='Аналитика прохождений анкеты',
+)
+async def get_survey_analytics (
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveyAnalyticsResponse:
+  from app.models.survey_attempt import SurveyAttempt
+  await _get_survey_or_404(db, current_user, survey_id)
+  total_res = await db.execute(
+    select(func.count()).select_from(SurveyAttempt).where(SurveyAttempt.survey_id == survey_id),
+  )
+  total = int(total_res.scalar_one() or 0)
+  completed_res = await db.execute(
+    select(func.count())
+    .select_from(SurveyAttempt)
+    .where(SurveyAttempt.survey_id == survey_id, SurveyAttempt.state == 'submitted'),
+  )
+  completed = int(completed_res.scalar_one() or 0)
+  avg_res = await db.execute(
+    select(func.avg(SurveyAttempt.score_percent))
+    .where(SurveyAttempt.survey_id == survey_id, SurveyAttempt.state == 'submitted', SurveyAttempt.score_percent.is_not(None)),
+  )
+  avg_pct = avg_res.scalar_one()
+  avg_score = float(avg_pct) if avg_pct is not None else None
+  from sqlalchemy import case
+  bucket_expr = case(
+    (SurveyAttempt.score_percent.is_(None), 'no_score'),
+    (SurveyAttempt.score_percent < 25, '0-24'),
+    (SurveyAttempt.score_percent < 50, '25-49'),
+    (SurveyAttempt.score_percent < 75, '50-74'),
+    (SurveyAttempt.score_percent < 100, '75-99'),
+    (SurveyAttempt.score_percent >= 100, '100'),
+    else_='other',
+  ).label('bucket')
+  buckets_res = await db.execute(
+    select(bucket_expr, func.count().label('cnt'))
+    .select_from(SurveyAttempt)
+    .where(SurveyAttempt.survey_id == survey_id, SurveyAttempt.state == 'submitted')
+    .group_by(bucket_expr),
+  )
+  distribution = [{'bucket': r[0], 'count': int(r[1])} for r in buckets_res.all()]
+  return SurveyAnalyticsResponse(
+    totalAttempts=total,
+    completedAttempts=completed,
+    avgScorePercent=avg_score,
+    scoreDistribution=distribution,
+  )
+
+
+@router.post(
+  '/{survey_id}/simulate',
+  response_model=SurveySimulateResponse,
+  summary='Симуляция прохождения (preview scoring)',
+)
+async def simulate_survey (
+  payload: SurveySimulateRequest,
+  survey_id: UUID,
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> SurveySimulateResponse:
+  await _get_survey_or_404(db, current_user, survey_id)
+  questions_res = await db.execute(
+    select(SurveyQuestion).where(SurveyQuestion.survey_id == survey_id).order_by(SurveyQuestion.sort_order.asc()),
+  )
+  questions = list(questions_res.scalars().all())
+  qids = [q.id for q in questions]
+  options_raw: dict[UUID, list[SurveyQuestionOption]] = {}
+  if qids:
+    opt_res = await db.execute(
+      select(SurveyQuestionOption)
+      .where(SurveyQuestionOption.question_id.in_(qids))
+      .order_by(SurveyQuestionOption.sort_order.asc()),
+    )
+    for o in opt_res.scalars().all():
+      options_raw.setdefault(o.question_id, []).append(o)
+  code_to_id = {q.code: q.id for q in questions if q.code}
+  score_total, score_max, score_pct, breakdown = compute_survey_score(
+    questions, options_raw, payload.answers, code_to_id,
+  )
+  return SurveySimulateResponse(
+    valid=True,
+    scoreTotal=float(score_total),
+    scoreMax=float(score_max),
+    scorePercent=float(score_pct),
+    scoreBreakdown=breakdown,
+  )
 
 
 @router.delete(

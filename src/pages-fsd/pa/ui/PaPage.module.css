@@ -67,3 +67,9 @@
   line-height: 1.65;
 }
 
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
