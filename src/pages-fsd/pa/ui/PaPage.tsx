@@ -72,7 +72,7 @@ function getConfigString (cfg: Record<string, unknown> | null, key: string): str
 
 function getCode (q: SurveyQuestionItem): string | null {
   if (q.code && q.code.trim()) return q.code.trim()
-  return getConfigString(q.config, 'code')
+  return getConfigString(q.config ?? null, 'code')
 }
 
 function isAuditorIdentityCode (code: string): boolean {
@@ -236,7 +236,7 @@ export function PaPage () {
   async function ensureOptions (q: SurveyQuestionItem) {
     const code = getCode(q)
     if (!token || !code) return
-    const source = getConfigString(q.config, 'source')
+    const source = getConfigString(q.config ?? null, 'source')
     if (!source) return
 
     setOptionsError(null)
@@ -423,7 +423,7 @@ function Question ({
   const val = valueByCode[code]
 
   if (type === 'intro') {
-    const text = getConfigString(q.config, 'text')
+    const text = getConfigString(q.config ?? null, 'text')
     return (
       <div>
         <div className={styles.questionTitle}>{q.title}</div>
@@ -478,13 +478,14 @@ function Question ({
   }
 
   if (type === 'multi_choice') {
+    const opts = q.options?.length ? q.options : options.map((o) => ({ ...o, isExclusive: false }))
     const arr = Array.isArray(val) ? val : typeof val === 'string' ? [val] : []
     const set = new Set(arr.map(String))
     return (
       <div>
         <div className={styles.questionTitle}>{q.title}</div>
         <div className={styles.checkboxGroup}>
-          {options.map((o) => (
+          {opts.map((o) => (
             <Checkbox
               key={o.value}
               checked={set.has(o.value)}
@@ -492,7 +493,7 @@ function Question ({
                 const next = new Set(set)
                 if (checked) next.add(o.value)
                 else next.delete(o.value)
-                if (o.isExclusive && checked) {
+                if ('isExclusive' in o && o.isExclusive && checked) {
                   onChange(code, [o.value])
                   return
                 }
@@ -537,19 +538,20 @@ function Question ({
       <div>
         <div className={styles.questionTitle}>{q.title}</div>
         <Input
+          as="textarea"
+          rows={4}
           value={typeof val === 'string' ? val : ''}
           onChange={(v) => onChange(code, String(v ?? ''))}
-          componentClass="textarea"
-          rows={4}
         />
       </div>
     )
   }
 
   if (type === 'scale') {
-    const min = typeof (q.config?.min as number) === 'number' ? (q.config.min as number) : 1
-    const max = typeof (q.config?.max as number) === 'number' ? (q.config.max as number) : 5
-    const step = typeof (q.config?.step as number) === 'number' ? (q.config.step as number) : 1
+    const cfg = q.config ?? {}
+    const min = typeof cfg.min === 'number' ? cfg.min : 1
+    const max = typeof cfg.max === 'number' ? cfg.max : 5
+    const step = typeof cfg.step === 'number' ? cfg.step : 1
     const scaleOptions = Array.from({ length: Math.floor((max - min) / step) + 1 }, (_, i) => ({
       value: String(min + i * step),
       label: String(min + i * step),

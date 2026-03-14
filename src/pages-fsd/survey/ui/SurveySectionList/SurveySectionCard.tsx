@@ -5,7 +5,6 @@ import { CSS } from '@dnd-kit/utilities'
 
 import type { SurveyPageItem, SurveyQuestionItem } from '@/entities/survey'
 
-import { SurveyQuestionRow } from './SurveyQuestionRow'
 import styles from './SurveySectionList.module.css'
 
 type SurveySectionCardProps = {
