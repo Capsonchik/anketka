@@ -51,6 +51,7 @@ def to_user_public (user: User) -> UserPublic:
     firstName=user.first_name,
     lastName=user.last_name,
     role=user.role.value if hasattr(user.role, 'value') else str(user.role),
+    platformRole=user.platform_role or 'user',
     company=company_public,
     email=user.email,
     phone=user.phone,
