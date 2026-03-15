@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { Checkbox, Input, Modal } from 'rsuite'
 
 import type { SurveyQuestionItem, SurveyQuestionOptionItem, SurveyQuestionUpdateRequest } from '@/entities/survey'
-import { Button } from '@/shared/ui'
 
 import styles from './SurveyQuestionEditorModal.module.css'
 
@@ -147,12 +146,14 @@ export function SurveyQuestionEditorModal ({
         {error ? <div className={styles.error}>{error}</div> : null}
       </Modal.Body>
       <Modal.Footer>
-        <Button type="button" variant="secondary" onClick={onClose} disabled={isSaving}>
-          Закрыть
-        </Button>
-        <Button type="button" variant="primary" onClick={handleSave} disabled={isSaving}>
-          Сохранить
-        </Button>
+        <div className={styles.footerActions}>
+          <button type="button" className={styles.footerButton} onClick={onClose} disabled={isSaving}>
+            Закрыть
+          </button>
+          <button type="button" className={styles.footerButton} onClick={handleSave} disabled={isSaving}>
+            Сохранить
+          </button>
+        </div>
       </Modal.Footer>
     </Modal>
   )

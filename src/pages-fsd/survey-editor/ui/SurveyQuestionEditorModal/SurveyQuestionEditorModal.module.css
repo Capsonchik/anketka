@@ -87,3 +87,35 @@
   font-weight: 500;
   color: rgba(218, 60, 60, 0.92);
 }
+
+.footerActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.footerButton {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .footerButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
+.footerButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

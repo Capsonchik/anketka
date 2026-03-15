@@ -2,13 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Input, Modal, SelectPicker } from 'rsuite'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import type {
   SurveyBuilderResponse,
-  SurveyCategory,
   SurveyAttachedProjectsResponse,
   SurveyItem,
   SurveyQuestionItem,
@@ -18,6 +16,20 @@ import type {
 import { Button } from '@/shared/ui'
 
 import { getApiErrorMessage } from '../lib/getApiErrorMessage'
+import { AddQuestionModal } from './SurveyPage/AddQuestionModal'
+import { AddSectionModal } from './SurveyPage/AddSectionModal'
+import {
+  CHOICE_TYPES,
+  COMMENT_MODE_FREE,
+  COMMENT_MODE_OPTION,
+  CREATE_NEW_SECTION_VALUE,
+  type AddQuestionOptionDraft,
+  buildOptionValue,
+  createEmptyOptionDraft,
+  getBulkAddPreviewCount,
+  getBulkOptionValues,
+  normalizeOptionLabel,
+} from './SurveyPage/addQuestionHelpers'
 import { SurveyQuestionEditorModal } from './SurveyQuestionEditorModal'
 import { SurveySectionList } from './SurveySectionList'
 import { SurveySimulatorPanel } from './SurveySimulatorPanel'
@@ -44,8 +56,22 @@ export function SurveyEditorPage ({ surveyId }: { surveyId: string }) {
 
   const [addQuestionOpen, setAddQuestionOpen] = useState(false)
   const [addQuestionPageId, setAddQuestionPageId] = useState<string>('')
+  const [addQuestionNewSectionTitle, setAddQuestionNewSectionTitle] = useState('')
+  const [addQuestionCode, setAddQuestionCode] = useState('')
   const [addQuestionTitle, setAddQuestionTitle] = useState('')
+  const [addQuestionDescription, setAddQuestionDescription] = useState('')
   const [addQuestionType, setAddQuestionType] = useState('short_text')
+  const [addQuestionPlaceholder, setAddQuestionPlaceholder] = useState('')
+  const [addQuestionWeight, setAddQuestionWeight] = useState('')
+  const [addQuestionOptions, setAddQuestionOptions] = useState<AddQuestionOptionDraft[]>([])
+  const [addQuestionOptionInput, setAddQuestionOptionInput] = useState('')
+  const [addQuestionBulkOptions, setAddQuestionBulkOptions] = useState('')
+  const [addQuestionExclusiveOptionIds, setAddQuestionExclusiveOptionIds] = useState<string[]>([])
+  const [addQuestionCommentOptionIds, setAddQuestionCommentOptionIds] = useState<string[]>([])
+  const [addQuestionRequired, setAddQuestionRequired] = useState(false)
+  const [addQuestionAllowNa, setAddQuestionAllowNa] = useState(false)
+  const [addQuestionAllowComment, setAddQuestionAllowComment] = useState(false)
+  const [addQuestionCommentMode, setAddQuestionCommentMode] = useState(COMMENT_MODE_FREE)
   const [isAddingQuestion, setIsAddingQuestion] = useState(false)
 
   const [simulatorOpen, setSimulatorOpen] = useState(false)
@@ -56,9 +82,11 @@ export function SurveyEditorPage ({ surveyId }: { surveyId: string }) {
     scoreDistribution: Array<{ bucket: string; count: number }>
   } | null>(null)
 
-  const categoryLabel = useMemo(() => formatCategory(survey?.category ?? null), [survey?.category])
-
   const canEdit = (survey?.status ?? 'created') !== 'published'
+  const bulkOptionPreviewCount = useMemo(
+    () => getBulkAddPreviewCount(addQuestionBulkOptions, addQuestionOptions),
+    [addQuestionBulkOptions, addQuestionOptions],
+  )
 
   async function copyTestLink () {
     if (!projectIdFromQuery) return
@@ -91,7 +119,9 @@ export function SurveyEditorPage ({ surveyId }: { surveyId: string }) {
 
   async function loadBuilder () {
     const res = await axiosMainRequest.get<SurveyBuilderResponse>(apiRoutes.surveys.surveyBuilder(surveyId))
-    setBuilder(res.data ?? null)
+    const nextBuilder = res.data ?? null
+    setBuilder(nextBuilder)
+    return nextBuilder
   }
 
   async function loadAll () {
@@ -155,7 +185,15 @@ export function SurveyEditorPage ({ surveyId }: { surveyId: string }) {
     closeEditQuestion()
   }, [editQuestion, surveyId])
 
-  async function addSection () {
+  function openAddSectionModal () {
+    const nextNumber = (builder?.pages.length ?? 0) + 1
+    setQuestionError(null)
+    setAddSectionTitle(`Секция ${nextNumber}`)
+    setAddSectionType('regular')
+    setAddSectionOpen(true)
+  }
+
+  async function submitAddSection () {
     setQuestionError(null)
     const title = addSectionTitle.trim()
     if (!title) {
@@ -179,26 +217,222 @@ export function SurveyEditorPage ({ surveyId }: { surveyId: string }) {
   }
 
   async function addQuestion (pageId: string) {
+    setQuestionError(null)
     setAddQuestionPageId(pageId)
+    setAddQuestionNewSectionTitle('')
+    setAddQuestionCode('')
     setAddQuestionTitle('')
+    setAddQuestionDescription('')
     setAddQuestionType('short_text')
+    setAddQuestionPlaceholder('')
+    setAddQuestionWeight('')
+    setAddQuestionOptions([])
+    setAddQuestionOptionInput('')
+    setAddQuestionBulkOptions('')
+    setAddQuestionExclusiveOptionIds([])
+    setAddQuestionCommentOptionIds([])
+    setAddQuestionRequired(false)
+    setAddQuestionAllowNa(false)
+    setAddQuestionAllowComment(false)
+    setAddQuestionCommentMode(COMMENT_MODE_FREE)
     setAddQuestionOpen(true)
   }
 
+  function addQuestionFromHeader () {
+    setQuestionError(null)
+    const firstPageId = builder?.pages[0]?.id
+    const hasPages = Boolean(firstPageId)
+    const nextNumber = (builder?.pages.length ?? 0) + 1
+    setAddQuestionPageId(firstPageId ?? CREATE_NEW_SECTION_VALUE)
+    setAddQuestionNewSectionTitle(hasPages ? '' : `Секция ${nextNumber}`)
+    setAddQuestionCode('')
+    setAddQuestionTitle('')
+    setAddQuestionDescription('')
+    setAddQuestionType('short_text')
+    setAddQuestionPlaceholder('')
+    setAddQuestionWeight('')
+    setAddQuestionOptions([])
+    setAddQuestionOptionInput('')
+    setAddQuestionBulkOptions('')
+    setAddQuestionExclusiveOptionIds([])
+    setAddQuestionCommentOptionIds([])
+    setAddQuestionRequired(false)
+    setAddQuestionAllowNa(false)
+    setAddQuestionAllowComment(false)
+    setAddQuestionCommentMode(COMMENT_MODE_FREE)
+    setAddQuestionOpen(true)
+  }
+
+  function setQuestionType (nextType: string) {
+    setAddQuestionType(nextType)
+    if (!CHOICE_TYPES.has(nextType)) {
+      setAddQuestionOptions([])
+      setAddQuestionOptionInput('')
+      setAddQuestionBulkOptions('')
+      setAddQuestionExclusiveOptionIds([])
+      setAddQuestionCommentOptionIds([])
+      if (addQuestionCommentMode === COMMENT_MODE_OPTION) {
+        setAddQuestionCommentMode(COMMENT_MODE_FREE)
+      }
+    }
+  }
+
+  function addOptionValue (rawValue: string) {
+    const value = rawValue.trim()
+    if (!value) return
+    setAddQuestionOptions((prev) => {
+      const hasDuplicate = prev.some((opt) => normalizeOptionLabel(opt.label) === normalizeOptionLabel(value))
+      if (hasDuplicate) return prev
+      return [...prev, createEmptyOptionDraft(prev.length + 1, value)]
+    })
+  }
+
+  function updateOptionRow (id: string, patch: Partial<AddQuestionOptionDraft>) {
+    setAddQuestionOptions((prev) => prev.map((opt) => (opt.id === id ? { ...opt, ...patch } : opt)))
+  }
+
+  function removeOptionRow (id: string) {
+    setAddQuestionOptions((prev) => prev.filter((opt) => opt.id !== id))
+    setAddQuestionExclusiveOptionIds((prev) => prev.filter((item) => item !== id))
+    setAddQuestionCommentOptionIds((prev) => prev.filter((item) => item !== id))
+  }
+
+  function addOptionFromInput () {
+    addOptionValue(addQuestionOptionInput)
+    setAddQuestionOptionInput('')
+  }
+
+  function addOptionsFromBulkInput () {
+    const items = getBulkOptionValues(addQuestionBulkOptions)
+    if (!items.length) return
+    items.forEach((item) => addOptionValue(item))
+    setAddQuestionBulkOptions('')
+  }
+
   async function submitAddQuestion () {
+    const code = addQuestionCode.trim()
     const title = addQuestionTitle.trim()
+    const description = addQuestionDescription.trim()
+    const placeholder = addQuestionPlaceholder.trim()
+    const weightRaw = addQuestionWeight.trim()
+    const weight = weightRaw ? Number(weightRaw.replace(',', '.')) : 0
+    const isChoiceType = CHOICE_TYPES.has(addQuestionType)
+    const optionDrafts = addQuestionOptions
+      .map((opt, index) => ({
+        ...opt,
+        sortOrder: index + 1,
+        label: opt.label.trim(),
+        value: (opt.value.trim() || buildOptionValue(opt.label.trim(), index + 1)),
+        pointsValue: opt.points.trim(),
+      }))
+      .filter((opt) => opt.label.length > 0 || opt.value.length > 0 || opt.pointsValue.length > 0)
+    const optionPoints = optionDrafts.map((opt) => (opt.pointsValue ? Number(opt.pointsValue.replace(',', '.')) : 0))
+    const choiceWeight = isChoiceType
+      ? (addQuestionType === 'single_choice'
+          ? (optionPoints.length ? Math.max(...optionPoints) : 0)
+          : optionPoints.reduce((acc, item) => acc + item, 0))
+      : 0
     if (!title) {
       setQuestionError('Введите формулировку вопроса')
       return
     }
+    if (!code) {
+      setQuestionError('Введите клиентский код вопроса')
+      return
+    }
+    if (addQuestionAllowComment && addQuestionCommentMode !== COMMENT_MODE_OPTION && addQuestionCommentMode !== COMMENT_MODE_FREE) {
+      setQuestionError('Выберите режим комментария')
+      return
+    }
+    if (weightRaw && (!Number.isFinite(weight) || weight < 0)) {
+      setQuestionError('Вес вопроса должен быть числом больше или равным 0')
+      return
+    }
+    if (isChoiceType && optionDrafts.length < 2) {
+      setQuestionError('Добавьте минимум 2 варианта ответа')
+      return
+    }
+    if (addQuestionAllowComment && addQuestionCommentMode === COMMENT_MODE_OPTION && addQuestionCommentOptionIds.length === 0) {
+      setQuestionError('Выберите варианты ответа для комментария')
+      return
+    }
+    for (const opt of optionDrafts) {
+      if (!opt.label) {
+        setQuestionError('У каждого варианта заполните текст')
+        return
+      }
+      const points = opt.pointsValue ? Number(opt.pointsValue.replace(',', '.')) : 0
+      if (!Number.isFinite(points) || points < 0) {
+        setQuestionError('Вес варианта должен быть числом больше или равным 0')
+        return
+      }
+    }
     setIsAddingQuestion(true)
     setQuestionError(null)
     try {
-      await axiosMainRequest.post(apiRoutes.surveys.surveyQuestions(surveyId), {
-        pageId: addQuestionPageId,
+      let targetPageId = addQuestionPageId
+      if (targetPageId === CREATE_NEW_SECTION_VALUE || !targetPageId) {
+        const sectionTitle = addQuestionNewSectionTitle.trim()
+        if (!sectionTitle) {
+          setQuestionError('Введите название новой секции')
+          setIsAddingQuestion(false)
+          return
+        }
+        await axiosMainRequest.post(apiRoutes.surveys.surveyPages(surveyId), {
+          title: sectionTitle,
+          sectionType: 'regular',
+        })
+        const nextBuilder = await loadBuilder()
+        const createdPage = findCreatedSection(nextBuilder, sectionTitle)
+        if (!createdPage?.id) {
+          setQuestionError('Не удалось определить созданную секцию')
+          setIsAddingQuestion(false)
+          return
+        }
+        targetPageId = createdPage.id
+      }
+      const config: Record<string, unknown> = {}
+      if (placeholder) {
+        config.placeholder = placeholder
+      }
+      if (addQuestionAllowComment) {
+        config.commentMode = addQuestionCommentMode
+        config.commentPlacement = addQuestionCommentMode === COMMENT_MODE_OPTION ? 'option' : 'free'
+        if (addQuestionCommentMode === COMMENT_MODE_OPTION) {
+          const selectedCommentValues = optionDrafts
+            .filter((opt) => addQuestionCommentOptionIds.includes(opt.id))
+            .map((opt) => opt.value)
+          config.commentOptionValues = selectedCommentValues
+        }
+      }
+
+      const createQuestionRes = await axiosMainRequest.post<{ question?: { id?: string } }>(apiRoutes.surveys.surveyQuestions(surveyId), {
+        pageId: targetPageId,
         type: addQuestionType,
+        code,
         title,
+        description: description || undefined,
+        required: addQuestionRequired,
+        weight: isChoiceType ? choiceWeight : weight,
+        allowNa: addQuestionAllowNa,
+        allowComment: addQuestionAllowComment,
+        config: Object.keys(config).length ? config : undefined,
       })
+
+      const questionId = createQuestionRes.data?.question?.id
+      if (isChoiceType && questionId) {
+        for (const opt of optionDrafts) {
+          const points = opt.pointsValue ? Number(opt.pointsValue.replace(',', '.')) : 0
+          await axiosMainRequest.post(`${apiRoutes.surveys.surveyQuestion(surveyId, questionId)}/options`, {
+            label: opt.label,
+            value: opt.value,
+            sortOrder: opt.sortOrder,
+            points,
+            isExclusive: addQuestionExclusiveOptionIds.includes(opt.id),
+            isNA: false,
+          })
+        }
+      }
       await loadBuilder()
       setAddQuestionOpen(false)
     } catch (err: unknown) {
@@ -248,213 +482,185 @@ export function SurveyEditorPage ({ surveyId }: { surveyId: string }) {
 
   return (
     <div className={styles.page}>
-      <div className={styles.headerRow}>
-        <h1 className="titleH1">Анкета</h1>
-        <span className={styles.pill}>{categoryLabel}</span>
-      </div>
-
-      <div className={styles.subTitle}>
-        {survey ? <span className={styles.surveyTitle}>{survey.title}</span> : 'Загрузка...'}
-      </div>
-
-      {!isLoading && !error ? (
-        <div className={styles.projectsRow}>
-          <span>Проекты:</span>
-          {attachedProjects.length ? (
-            attachedProjects.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className={styles.projectPill}
-                onClick={() => {
-                  window.location.href = `/projects/${encodeURIComponent(p.id)}`
-                }}
-                title={`Открыть проект «${p.name}»`}
-              >
-                {p.name}
-              </button>
-            ))
-          ) : (
-            <span>не прикреплена</span>
-          )}
+      <div className={styles.topBar}>
+        <h1 className="titleH1">{survey?.title ?? 'Загрузка...'}</h1>
+        <div className={styles.headerActions}>
+          <button type="button" className={styles.headerTextButton} onClick={openAddSectionModal} disabled={!canEdit || isLoading || isAddingSection}>
+            Добавить секцию
+          </button>
+          <button type="button" className={styles.headerTextButton} onClick={addQuestionFromHeader} disabled={!canEdit || isLoading}>
+            Добавить вопрос
+          </button>
+          <button type="button" className={styles.headerTextButton} onClick={() => setSimulatorOpen(true)} disabled={isLoading}>
+            Симуляция
+          </button>
+          <button type="button" className={styles.headerTextButton} onClick={loadAnalytics} disabled={isLoading}>
+            Аналитика
+          </button>
         </div>
-      ) : null}
-
-      <div className={styles.hint} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span>Ссылка для прохождения</span>
-        {projectIdFromQuery ? (
-          <Button type="button" variant="ghost" onClick={copyTestLink} disabled={isLoading}>
-            Скопировать (тест)
-          </Button>
-        ) : (
-          <span style={{ opacity: 0.75 }}>Откройте анкету из проекта, чтобы получить ссылку</span>
-        )}
       </div>
 
-      <div className={styles.body}>
-        {isLoading ? <div className={styles.hint}>Загрузка...</div> : null}
-        {error ? <div className={styles.error}>{error}</div> : null}
-
-        {!isLoading && !error && survey && builder ? (
-          <section>
-            <div className={styles.toolbar}>
-              <Button type="button" variant="ghost" onClick={() => setSimulatorOpen(true)}>
-                Симуляция
-              </Button>
-              <Button type="button" variant="ghost" onClick={loadAnalytics}>
-                Аналитика
-              </Button>
+      <div className={styles.content}>
+        <div className={styles.body}>
+          {!isLoading && !error ? (
+            <div className={styles.projectsRow}>
+              <span>Проекты:</span>
+              {attachedProjects.length ? (
+                attachedProjects.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={styles.projectPill}
+                    onClick={() => {
+                      window.location.href = `/projects/${encodeURIComponent(p.id)}`
+                    }}
+                    title={`Открыть проект «${p.name}»`}
+                  >
+                    {p.name}
+                  </button>
+                ))
+              ) : (
+                <span>не прикреплена</span>
+              )}
             </div>
+          ) : null}
 
-            {analytics && (
-              <div className={styles.analyticsBlock}>
-                <div className={styles.analyticsRow}>
-                  <span>Прохождений:</span>
-                  <strong>{analytics.totalAttempts}</strong>
-                </div>
-                <div className={styles.analyticsRow}>
-                  <span>Завершённых:</span>
-                  <strong>{analytics.completedAttempts}</strong>
-                </div>
-                {analytics.avgScorePercent != null && (
-                  <div className={styles.analyticsRow}>
-                    <span>Средний балл:</span>
-                    <strong>{analytics.avgScorePercent.toFixed(1)}%</strong>
-                  </div>
-                )}
-              </div>
+          <div className={styles.hint} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span>Ссылка для прохождения</span>
+            {projectIdFromQuery ? (
+              <Button type="button" variant="ghost" onClick={copyTestLink} disabled={isLoading}>
+                Скопировать (тест)
+              </Button>
+            ) : (
+              <span style={{ opacity: 0.75 }}>Откройте анкету из проекта, чтобы получить ссылку</span>
             )}
+          </div>
 
-            {questionError ? <div className={styles.error} style={{ marginBottom: 10 }}>{questionError}</div> : null}
+          {isLoading ? <div className={styles.hint}>Загрузка...</div> : null}
+          {error ? <div className={styles.error}>{error}</div> : null}
 
-            <SurveySectionList
-              builder={builder}
-              canEdit={canEdit}
-              onAddSection={() => setAddSectionOpen(true)}
-              onAddQuestion={addQuestion}
-              onEditQuestion={openEditQuestion}
-              onDeleteQuestion={deleteQuestion}
-              onDeleteSection={deleteSection}
-              onReorder={reorder}
-            />
-
-            <Modal open={addSectionOpen} onClose={() => !isAddingSection && setAddSectionOpen(false)} size="xs">
-              <Modal.Header>
-                <Modal.Title>Добавить секцию</Modal.Title>
-              </Modal.Header>
-              <Modal.Body>
-                <div style={{ display: 'grid', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Название *</div>
-                    <Input value={addSectionTitle} onChange={(v) => setAddSectionTitle(String(v ?? ''))} placeholder="Например: Скрининг" />
+          {!isLoading && !error && survey && builder ? (
+            <section>
+              {analytics && (
+                <div className={styles.analyticsBlock}>
+                  <div className={styles.analyticsRow}>
+                    <span>Прохождений:</span>
+                    <strong>{analytics.totalAttempts}</strong>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Тип</div>
-                    <SelectPicker
-                      value={addSectionType}
-                      onChange={(v) => setAddSectionType((v as 'regular' | 'loop') ?? 'regular')}
-                      data={[
-                        { value: 'regular', label: 'Обычная' },
-                        { value: 'loop', label: 'Цикличная (повтор по элементам)' },
-                      ]}
-                      cleanable={false}
-                      searchable={false}
-                      block
-                    />
+                  <div className={styles.analyticsRow}>
+                    <span>Завершённых:</span>
+                    <strong>{analytics.completedAttempts}</strong>
                   </div>
+                  {analytics.avgScorePercent != null && (
+                    <div className={styles.analyticsRow}>
+                      <span>Средний балл:</span>
+                      <strong>{analytics.avgScorePercent.toFixed(1)}%</strong>
+                    </div>
+                  )}
                 </div>
-                {questionError ? <div className={styles.error} style={{ marginTop: 10 }}>{questionError}</div> : null}
-              </Modal.Body>
-              <Modal.Footer>
-                <Button type="button" variant="secondary" onClick={() => setAddSectionOpen(false)} disabled={isAddingSection}>
-                  Отмена
-                </Button>
-                <Button type="button" variant="primary" onClick={addSection} disabled={isAddingSection}>
-                  Добавить
-                </Button>
-              </Modal.Footer>
-            </Modal>
+              )}
 
-            <Modal open={addQuestionOpen} onClose={() => !isAddingQuestion && setAddQuestionOpen(false)} size="sm">
-              <Modal.Header>
-                <Modal.Title>Добавить вопрос</Modal.Title>
-              </Modal.Header>
-              <Modal.Body>
-                <div style={{ display: 'grid', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Секция</div>
-                    <SelectPicker
-                      value={addQuestionPageId}
-                      onChange={(v) => setAddQuestionPageId(String(v ?? ''))}
-                      data={(builder?.pages ?? []).map((p) => ({ value: p.id, label: p.title }))}
-                      cleanable={false}
-                      searchable={false}
-                      block
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Тип вопроса *</div>
-                    <SelectPicker
-                      value={addQuestionType}
-                      onChange={(v) => setAddQuestionType(String(v ?? 'short_text'))}
-                      data={[
-                        { value: 'short_text', label: 'Короткий текст' },
-                        { value: 'long_text', label: 'Длинный текст' },
-                        { value: 'number', label: 'Число' },
-                        { value: 'email', label: 'Email' },
-                        { value: 'single_choice', label: 'Одиночный выбор' },
-                        { value: 'multi_choice', label: 'Множественный выбор' },
-                        { value: 'scale', label: 'Шкала' },
-                        { value: 'matrix', label: 'Табличный' },
-                        { value: 'date', label: 'Дата' },
-                        { value: 'time', label: 'Время' },
-                        { value: 'rank', label: 'Ранг' },
-                        { value: 'photo', label: 'Фото' },
-                      ]}
-                      cleanable={false}
-                      searchable={false}
-                      block
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>Формулировка *</div>
-                    <Input value={addQuestionTitle} onChange={(v) => setAddQuestionTitle(String(v ?? ''))} placeholder="Текст вопроса" />
-                  </div>
-                </div>
-              </Modal.Body>
-              <Modal.Footer>
-                <Button type="button" variant="secondary" onClick={() => setAddQuestionOpen(false)} disabled={isAddingQuestion}>
-                  Отмена
-                </Button>
-                <Button type="button" variant="primary" onClick={submitAddQuestion} disabled={isAddingQuestion}>
-                  Добавить
-                </Button>
-              </Modal.Footer>
-            </Modal>
+              {questionError ? <div className={styles.error} style={{ marginBottom: 10 }}>{questionError}</div> : null}
 
-            <SurveyQuestionEditorModal
-              open={Boolean(editQuestion)}
-              question={editQuestion?.q ?? null}
-              pageTitle={editQuestion?.pageTitle ?? ''}
-              onClose={closeEditQuestion}
-              onSave={saveEditQuestion}
-            />
+              <SurveySectionList
+                builder={builder}
+                canEdit={canEdit}
+                onAddQuestion={addQuestion}
+                onEditQuestion={openEditQuestion}
+                onDeleteQuestion={deleteQuestion}
+                onDeleteSection={deleteSection}
+                onReorder={reorder}
+              />
 
-            <SurveySimulatorPanel
-              surveyId={surveyId}
-              builder={builder}
-              open={simulatorOpen}
-              onClose={() => setSimulatorOpen(false)}
-            />
-          </section>
-        ) : null}
+              <AddSectionModal
+                open={addSectionOpen}
+                isAdding={isAddingSection}
+                title={addSectionTitle}
+                sectionType={addSectionType}
+                onClose={() => setAddSectionOpen(false)}
+                onTitleChange={setAddSectionTitle}
+                onSectionTypeChange={setAddSectionType}
+                onSubmit={submitAddSection}
+              />
+
+              <AddQuestionModal
+                open={addQuestionOpen}
+                isAdding={isAddingQuestion}
+                error={questionError}
+                builderPages={(builder?.pages ?? []).map((p) => ({ id: p.id, title: p.title }))}
+                pageId={addQuestionPageId}
+                newSectionTitle={addQuestionNewSectionTitle}
+                code={addQuestionCode}
+                title={addQuestionTitle}
+                description={addQuestionDescription}
+                questionType={addQuestionType}
+                placeholder={addQuestionPlaceholder}
+                weight={addQuestionWeight}
+                options={addQuestionOptions}
+                optionInput={addQuestionOptionInput}
+                bulkOptions={addQuestionBulkOptions}
+                bulkOptionPreviewCount={bulkOptionPreviewCount}
+                exclusiveOptionIds={addQuestionExclusiveOptionIds}
+                commentOptionIds={addQuestionCommentOptionIds}
+                required={addQuestionRequired}
+                allowNa={addQuestionAllowNa}
+                allowComment={addQuestionAllowComment}
+                commentMode={addQuestionCommentMode}
+                onClose={() => setAddQuestionOpen(false)}
+                onSubmit={submitAddQuestion}
+                onPageChange={(nextValue) => {
+                  setAddQuestionPageId(nextValue)
+                  if (nextValue === CREATE_NEW_SECTION_VALUE && !addQuestionNewSectionTitle.trim()) {
+                    const nextNumber = (builder?.pages.length ?? 0) + 1
+                    setAddQuestionNewSectionTitle(`Секция ${nextNumber}`)
+                  }
+                }}
+                onNewSectionTitleChange={setAddQuestionNewSectionTitle}
+                onCodeChange={setAddQuestionCode}
+                onTitleChange={setAddQuestionTitle}
+                onDescriptionChange={setAddQuestionDescription}
+                onQuestionTypeChange={setQuestionType}
+                onPlaceholderChange={setAddQuestionPlaceholder}
+                onWeightChange={setAddQuestionWeight}
+                onOptionInputChange={setAddQuestionOptionInput}
+                onOptionInputEnter={addOptionFromInput}
+                onBulkOptionsChange={setAddQuestionBulkOptions}
+                onBulkOptionsAdd={addOptionsFromBulkInput}
+                onOptionRemove={removeOptionRow}
+                onOptionPointsChange={(id, points) => updateOptionRow(id, { points })}
+                onExclusiveOptionIdsChange={setAddQuestionExclusiveOptionIds}
+                onCommentOptionIdsChange={setAddQuestionCommentOptionIds}
+                onRequiredChange={setAddQuestionRequired}
+                onAllowNaChange={setAddQuestionAllowNa}
+                onAllowCommentChange={setAddQuestionAllowComment}
+                onCommentModeChange={setAddQuestionCommentMode}
+              />
+
+              <SurveyQuestionEditorModal
+                open={Boolean(editQuestion)}
+                question={editQuestion?.q ?? null}
+                pageTitle={editQuestion?.pageTitle ?? ''}
+                onClose={closeEditQuestion}
+                onSave={saveEditQuestion}
+              />
+
+              <SurveySimulatorPanel
+                surveyId={surveyId}
+                builder={builder}
+                open={simulatorOpen}
+                onClose={() => setSimulatorOpen(false)}
+              />
+            </section>
+          ) : null}
+        </div>
       </div>
     </div>
   )
 }
 
-function formatCategory (category: SurveyCategory | null) {
-  if (category === 'mystery') return 'Мистери'
-  if (category === 'price_monitoring') return 'Ценовой мониторинг'
-  return 'Анкета'
+function findCreatedSection (builder: SurveyBuilderResponse | null, title: string) {
+  if (!builder?.pages.length) return null
+  const byTitle = builder.pages.filter((page) => page.title.trim() === title.trim())
+  if (byTitle.length === 0) return builder.pages[builder.pages.length - 1]
+  return byTitle.sort((a, b) => b.sortOrder - a.sortOrder)[0]
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
@@ -58,10 +59,10 @@ export function SurveySectionCard ({
         {canEdit && (
           <div className={styles.sectionActions}>
             <button type="button" className={styles.iconBtn} onClick={onAddQuestion} aria-label="Добавить вопрос">
-              +
+              <Image src="/icons/add.svg" alt="" width={14} height={14} aria-hidden="true" />
             </button>
             <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={onDeleteSection} aria-label="Удалить секцию">
-              <TrashIcon />
+              <Image src="/icons/trash.svg" alt="" width={14} height={14} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -141,10 +142,10 @@ function SurveyQuestionRow ({
       {canEdit && (
         <div className={styles.questionActions}>
           <button type="button" className={styles.iconBtn} onClick={onEdit} aria-label="Редактировать">
-            <EditIcon />
+            <Image src="/icons/edit.svg" alt="" width={14} height={14} aria-hidden="true" />
           </button>
           <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={onDelete} aria-label="Удалить">
-            <TrashIcon />
+            <Image src="/icons/trash.svg" alt="" width={14} height={14} aria-hidden="true" />
           </button>
         </div>
       )}
@@ -161,33 +162,9 @@ function DragIcon () {
 }
 
 function ChevronDownIcon () {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
+  return <Image src="/icons/arrow-down.svg" alt="" width={14} height={14} aria-hidden="true" />
 }
 
 function ChevronRightIcon () {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function EditIcon () {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function TrashIcon () {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M9 3h6m-8 4h10m-9 0 .7 14h6.6L16 7M10 11v7m4-7v7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
+  return <Image src="/icons/arrow-right.svg" alt="" width={14} height={14} aria-hidden="true" />
 }

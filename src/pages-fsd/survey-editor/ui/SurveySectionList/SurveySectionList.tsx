@@ -20,7 +20,6 @@ import styles from './SurveySectionList.module.css'
 export type SurveySectionListProps = {
   builder: SurveyBuilderResponse
   canEdit: boolean
-  onAddSection: () => void
   onAddQuestion: (pageId: string) => void
   onEditQuestion: (q: SurveyQuestionItem, pageTitle: string) => void
   onDeleteQuestion: (questionId: string) => void
@@ -31,7 +30,6 @@ export type SurveySectionListProps = {
 export function SurveySectionList ({
   builder,
   canEdit,
-  onAddSection,
   onAddQuestion,
   onEditQuestion,
   onDeleteQuestion,
@@ -91,11 +89,6 @@ export function SurveySectionList ({
         <span className={styles.scoreHint}>
           {builder.maxScore != null ? `Стоимость анкеты: 100% = ${builder.maxScore} баллов` : 'Добавьте вопросы с баллами'}
         </span>
-        {canEdit && (
-          <button type="button" className={styles.addSectionBtn} onClick={onAddSection}>
-            + Добавить секцию
-          </button>
-        )}
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

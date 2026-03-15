@@ -1,30 +1,63 @@
 .page {
-  display: grid;
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   height: 100%;
-  grid-template-rows: auto auto 1fr;
   overflow: hidden;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.headerTextButton {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .headerTextButton:hover {
+    background: rgba(66, 170, 255, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
+.headerTextButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .body {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.headerRow {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.subTitle {
-  margin-top: -2px;
-  color: var(--text-secondary);
-  font-weight: 600;
-  line-height: 1.7;
+  gap: 10px;
+  min-height: 100%;
 }
 
 .projectsRow {
@@ -54,33 +87,14 @@
   cursor: default;
 }
 
-.surveyTitle {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
 .hint {
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .error {
   color: rgba(218, 60, 60, 0.92);
   font-weight: 600;
-}
-
-.footerRow {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.toolbar {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 8px;
 }
 
 .analyticsBlock {
@@ -101,14 +115,34 @@
   margin-left: 6px;
 }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  background: rgba(0, 0, 0, 0.08);
-  color: rgba(0, 0, 0, 0.78);
+.modalForm {
+  display: grid;
+  gap: 12px;
 }
+
+.modalBlock {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.modalInnerBlock {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.modalFooterActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
