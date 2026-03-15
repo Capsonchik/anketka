@@ -139,7 +139,9 @@ export function ClientCreateWizardModal ({
         name: name.trim() || client.name,
         theme,
       }
-      const res = await axiosMainRequest.patch<ClientItem>(apiRoutes.clients.client(client.id), payload)
+      const res = await axiosMainRequest.patch<ClientItem>(apiRoutes.clients.client(client.id), payload, {
+        headers: getClientScopedHeaders(client.id),
+      })
       setClient(res.data)
     } catch (err: unknown) {
       setError(getApiErrorMessage(err))
@@ -159,7 +161,10 @@ export function ClientCreateWizardModal ({
       fd.append('file', file)
       const url = kind === 'logo' ? apiRoutes.clients.logo(client.id) : apiRoutes.clients.background(client.id)
       const res = await axiosMainRequest.post<ClientItem>(url, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          ...getClientScopedHeaders(client.id),
+          'Content-Type': 'multipart/form-data',
+        },
       })
       setClient(res.data)
       if (kind === 'logo') setLogoFile(null)
@@ -176,7 +181,9 @@ export function ClientCreateWizardModal ({
     setIsBusy(true)
     setError(null)
     try {
-      const res = await axiosMainRequest.patch<ClientItem>(apiRoutes.clients.client(client.id), { filters })
+      const res = await axiosMainRequest.patch<ClientItem>(apiRoutes.clients.client(client.id), { filters }, {
+        headers: getClientScopedHeaders(client.id),
+      })
       setClient(res.data)
       setStep(4)
     } catch (err: unknown) {
@@ -195,7 +202,10 @@ export function ClientCreateWizardModal ({
       const fd = new FormData()
       fd.append('file', apFile)
       const res = await axiosMainRequest.post<ClientApUploadResponse>(apiRoutes.clients.apUpload(client.id), fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          ...getClientScopedHeaders(client.id),
+          'Content-Type': 'multipart/form-data',
+        },
       })
       setApResult(res.data)
     } catch (err: unknown) {
@@ -214,7 +224,10 @@ export function ClientCreateWizardModal ({
       const fd = new FormData()
       fd.append('file', apFile)
       const res = await axiosMainRequest.post<ClientApPreviewResponse>(`${apiRoutes.clients.client(client.id)}/ap/preview`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          ...getClientScopedHeaders(client.id),
+          'Content-Type': 'multipart/form-data',
+        },
       })
       setApPreview(res.data)
     } catch (err: unknown) {
@@ -233,7 +246,10 @@ export function ClientCreateWizardModal ({
       const fd = new FormData()
       fd.append('file', usersFile)
       const res = await axiosMainRequest.post<ClientUsersImportResponse>(`${apiRoutes.clients.usersImport(client.id)}?updateExisting=true&generateRandomPasswordIfEmpty=true`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          ...getClientScopedHeaders(client.id),
+          'Content-Type': 'multipart/form-data',
+        },
       })
       setUsersResult(res.data)
     } catch (err: unknown) {
@@ -252,7 +268,10 @@ export function ClientCreateWizardModal ({
       const fd = new FormData()
       fd.append('file', usersFile)
       const res = await axiosMainRequest.post<ClientUsersImportPreviewResponse>(`${apiRoutes.clients.usersImport(client.id)}/preview`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          ...getClientScopedHeaders(client.id),
+          'Content-Type': 'multipart/form-data',
+        },
       })
       setUsersPreview(res.data)
     } catch (err: unknown) {
@@ -609,5 +628,9 @@ function getApRowIssues (row: ClientApPreviewResponse['rows'][number]) {
   if (!row.name) issues.push('name')
   if (!row.code) issues.push('code')
   return issues
+}
+
+function getClientScopedHeaders (clientId: string): Record<string, string> {
+  return { 'X-Company-Id': clientId }
 }
 

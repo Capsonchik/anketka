@@ -101,7 +101,9 @@ function ClientEditModalInner ({
         theme,
         filters,
       }
-      await axiosMainRequest.patch(apiRoutes.clients.client(client.id), payload)
+      await axiosMainRequest.patch(apiRoutes.clients.client(client.id), payload, {
+        headers: getClientScopedHeaders(client.id),
+      })
       onSaved()
     } catch (err: unknown) {
       setError(getApiErrorMessage(err))
@@ -111,8 +113,15 @@ function ClientEditModalInner ({
 
   async function refreshClient () {
     try {
-      const res = await axiosMainRequest.get<ClientItem>(apiRoutes.clients.client(client.id))
-      const next = res.data
+      const res = await axiosMainRequest.get<{ items: ClientItem[] }>(
+        `${apiRoutes.clients.clients}?includeArchived=true`,
+        { headers: getClientScopedHeaders(client.id) },
+      )
+      const next = (res.data.items ?? []).find((item) => item.id === client.id)
+      if (!next) {
+        setError('Клиент не найден в списке')
+        return
+      }
       setClient(next)
       setLogoFiles(makeUploadedFileList(next.logoUrl, 'logo'))
       setBackgroundFiles(makeUploadedFileList(next.backgroundUrl, 'background'))
@@ -128,9 +137,10 @@ function ClientEditModalInner ({
     return {
       Accept: 'application/json',
       'Accept-Language': 'ru',
+      'X-Company-Id': client.id,
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     }
-  }, [])
+  }, [client.id])
 
   const logoDirectHref = client.logoUrl ? toAssetHref(client.logoUrl) : null
   const backgroundDirectHref = client.backgroundUrl ? toAssetHref(client.backgroundUrl) : null
@@ -223,7 +233,9 @@ function ClientEditModalInner ({
     let isAlive = true
     setApPreviewError(null)
     axiosMainRequest
-      .get<ShopPointsResponse>(apiRoutes.projects.addressbook(projectId))
+      .get<ShopPointsResponse>(apiRoutes.projects.addressbook(projectId), {
+        headers: getClientScopedHeaders(client.id),
+      })
       .then((res) => {
         if (!isAlive) return
         setApPoints((res.data.items ?? []).slice(0, 20))
@@ -236,7 +248,7 @@ function ClientEditModalInner ({
     return () => {
       isAlive = false
     }
-  }, [client.baseApProjectId])
+  }, [client.baseApProjectId, client.id])
 
   async function uploadAp () {
     if (!apFile) return
@@ -247,7 +259,10 @@ function ClientEditModalInner ({
       const fd = new FormData()
       fd.append('file', apFile)
       const res = await axiosMainRequest.post<ClientApUploadResponse>(apiRoutes.clients.apUpload(client.id), fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          ...getClientScopedHeaders(client.id),
+          'Content-Type': 'multipart/form-data',
+        },
       })
       setApResult(res.data)
       setApFile(null)
@@ -668,5 +683,9 @@ function escapeHtmlAttr (value: string) {
     .replaceAll("'", '&#39;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
+}
+
+function getClientScopedHeaders (clientId: string): Record<string, string> {
+  return { 'X-Company-Id': clientId }
 }
 
