@@ -12,6 +12,7 @@ export function TeamUserModalDistributionTab ({
   companiesAccess,
   companiesError,
   distError,
+  isCompanyAccessSaving,
   activeDistributionCompanyId,
   filterOptions,
   filterTitles,
@@ -32,6 +33,7 @@ export function TeamUserModalDistributionTab ({
   companiesAccess: UserCompaniesAccessResponse | null
   companiesError: string | null
   distError: string | null
+  isCompanyAccessSaving: boolean
   activeDistributionCompanyId: string | null
   filterOptions: Record<string, string[]>
   filterTitles: Record<string, string>
@@ -70,10 +72,10 @@ export function TeamUserModalDistributionTab ({
         <div style={{ display: 'grid', gap: 8 }}>
           <Checkbox
             checked={Boolean((companiesAccess?.items ?? []).find((c) => c.id === activeDistributionCompanyId)?.hasAccess)}
-            disabled={!activeDistributionCompanyId || !companiesAccess}
+            disabled={!activeDistributionCompanyId || !companiesAccess || isCompanyAccessSaving}
             onChange={(_, next) => onToggleCompanyAccess(Boolean(next))}
           >
-            Разрешить доступ
+            {isCompanyAccessSaving ? 'Сохраняем доступ...' : 'Разрешить доступ'}
           </Checkbox>
           <div className={styles.hint}>
             Если доступ выключен - пользователь не сможет переключиться на этого клиента в селекторе.
@@ -187,7 +189,7 @@ export function TeamUserModalDistributionTab ({
         <Button
           type="button"
           variant="primary"
-          disabled={actualMode !== 'edit' || !activeDistributionCompanyId || isDistSaving}
+          disabled={actualMode !== 'edit' || !activeDistributionCompanyId || isDistSaving || isCompanyAccessSaving}
           onClick={onSave}
         >
           {isDistSaving ? 'Сохранение...' : 'Сохранить распределение'}

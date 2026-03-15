@@ -283,7 +283,16 @@ async def _get_base_ap_project_id (db: AsyncSession, *, company_id: UUID) -> UUI
 
 
 async def _ensure_target_user_in_company (db: AsyncSession, *, company_id: UUID, user_id: UUID) -> User:
-  res = await db.execute(select(User).where(User.id == user_id, User.company_id == company_id))
+  res = await db.execute(
+    select(User)
+    .where(
+      User.id == user_id,
+      or_(
+        User.company_id == company_id,
+        User.id.in_(select(UserCompanyAccess.user_id).where(UserCompanyAccess.company_id == company_id)),
+      ),
+    ),
+  )
   user = res.scalar_one_or_none()
   if user is None:
     raise HTTPException(status_code=404, detail='Пользователь не найден')
@@ -315,7 +324,12 @@ async def list_users (
   stmt = (
     select(User)
     .options(selectinload(User.company))
-    .where(User.company_id == company_id)
+    .where(
+      or_(
+        User.company_id == company_id,
+        User.id.in_(select(UserCompanyAccess.user_id).where(UserCompanyAccess.company_id == company_id)),
+      ),
+    )
     .order_by(User.created_at.desc())
   )
   if user_id is not None:
@@ -370,7 +384,12 @@ async def export_users_xlsx (
   stmt = (
     select(User)
     .options(selectinload(User.company))
-    .where(User.company_id == company_id)
+    .where(
+      or_(
+        User.company_id == company_id,
+        User.id.in_(select(UserCompanyAccess.user_id).where(UserCompanyAccess.company_id == company_id)),
+      ),
+    )
     .order_by(User.created_at.desc())
   )
   if user_id is not None:
@@ -568,14 +587,9 @@ async def get_user (
   _ensure_admin_or_manager_or_owner(current_user)
   _ensure_perm(current_user, 'users.edit')
   company_id = getattr(current_user, 'active_company_id', current_user.company_id)
-  res = await db.execute(
-    select(User)
-    .options(selectinload(User.company))
-    .where(User.id == user_id, User.company_id == company_id),
-  )
-  user = res.scalar_one_or_none()
-  if user is None:
-    raise HTTPException(status_code=404, detail='Пользователь не найден')
+  await _ensure_target_user_in_company(db, company_id=company_id, user_id=user_id)
+  res = await db.execute(select(User).options(selectinload(User.company)).where(User.id == user_id))
+  user = res.scalar_one()
 
   password = user.temporary_password if current_user.role == UserRole.admin else None
   return TeamUserDetailsResponse(user=to_team_user_item(user), password=password)
@@ -595,10 +609,9 @@ async def update_user (
   _ensure_admin_or_manager_or_owner(current_user)
   _ensure_perm(current_user, 'users.edit')
   company_id = _company_id(current_user)
-  res = await db.execute(select(User).options(selectinload(User.company)).where(User.id == user_id, User.company_id == company_id))
-  user = res.scalar_one_or_none()
-  if user is None:
-    raise HTTPException(status_code=404, detail='Пользователь не найден')
+  await _ensure_target_user_in_company(db, company_id=company_id, user_id=user_id)
+  res = await db.execute(select(User).options(selectinload(User.company)).where(User.id == user_id))
+  user = res.scalar_one()
 
   _ensure_can_manage_user(current_user, target_role=user.role)
   _, role_defaults = await _get_company_role_defaults(db, company_id=company_id)
@@ -674,10 +687,7 @@ async def reset_user_password (
   _ensure_admin_or_manager_or_owner(current_user)
   _ensure_perm(current_user, 'users.edit')
   company_id = _company_id(current_user)
-  res = await db.execute(select(User).where(User.id == user_id, User.company_id == company_id))
-  user = res.scalar_one_or_none()
-  if user is None:
-    raise HTTPException(status_code=404, detail='Пользователь не найден')
+  user = await _ensure_target_user_in_company(db, company_id=company_id, user_id=user_id)
 
   _ensure_can_manage_user(current_user, target_role=user.role)
 
@@ -1444,11 +1454,19 @@ async def _list_manageable_companies (db: AsyncSession, *, actor: User) -> list[
     res = await db.execute(stmt)
     return list(res.all())
 
-  # non-owner: only their active company
-  cid = _company_id(actor)
-  stmt = select(Company, CompanySettings).outerjoin(CompanySettings, CompanySettings.company_id == Company.id).where(Company.id == cid)
+  # non-owner: own company + explicitly granted companies
+  stmt = (
+    select(Company, CompanySettings)
+    .outerjoin(CompanySettings, CompanySettings.company_id == Company.id)
+    .outerjoin(UserCompanyAccess, UserCompanyAccess.company_id == Company.id)
+    .where((Company.id == actor.company_id) | (UserCompanyAccess.user_id == actor.id))
+    .order_by(Company.created_at.desc())
+  )
   res = await db.execute(stmt)
-  return list(res.all())
+  unique: dict[UUID, tuple[Company, CompanySettings | None]] = {}
+  for company, settings in res.all():
+    unique[company.id] = (company, settings)
+  return list(unique.values())
 
 
 @router.get('/users/{user_id}/companies-access', response_model=UserCompaniesAccessResponse, summary='Доступ пользователя к клиентам')

@@ -5,6 +5,7 @@ import Image from 'next/image'
 
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
+import { readActiveCompanyId } from '@/api-config/company-context'
 import type { UserRole } from '@/entities/user'
 import { Button } from '@/shared/ui'
 
@@ -82,7 +83,7 @@ export function TeamPage () {
   const groupsRef = useRef<TeamGroupsTabHandle | null>(null)
   const skipNextDebouncedLoadRef = useRef(false)
 
-  const { me: bootMe, isLoading: isBootLoading, error: bootError } = useBootstrapData()
+  const { me: bootMe, clients: bootClients, isLoading: isBootLoading, error: bootError } = useBootstrapData()
 
   const hasFilters = useMemo(() => search.trim().length > 0 || roleFilter !== 'all', [roleFilter, search])
 
@@ -195,13 +196,12 @@ export function TeamPage () {
 
   const canEditDetails = details?.user ? canEditTeamUser(myRole, details.user.role) : false
 
-  async function loadUsers (opts?: { q?: string; role?: UserRole | 'all'; companyId?: string | null }) {
+  async function loadUsers (opts?: { q?: string; role?: UserRole | 'all' }) {
     setIsLoading(true)
     setError(null)
     try {
       const q = (opts?.q ?? search).trim()
       const r = opts?.role ?? roleFilter
-      const companyId = opts?.companyId ?? myCompanyId
       const params: Record<string, string> = {}
       if (q) params.q = q
       if (r !== 'all') params.role = r
@@ -218,8 +218,7 @@ export function TeamPage () {
 
       const res = await axiosMainRequest.get<TeamUsersResponse>(apiRoutes.team.users, { params })
       const items = res.data.items ?? []
-      const filtered = companyId ? items.filter((u) => u.company?.id === companyId) : items
-      setUsers(filtered)
+      setUsers(items)
     } catch (err: unknown) {
       setError(getApiErrorMessage(err))
     } finally {
@@ -237,13 +236,15 @@ export function TeamPage () {
       return
     }
 
-    const companyId = bootMe.company?.id ?? null
+    const storedCompanyId = readActiveCompanyId()
+    const hasStoredCompany = Boolean(storedCompanyId && bootClients.some((client) => client.id === storedCompanyId))
+    const companyId = hasStoredCompany ? storedCompanyId : (bootMe.company?.id ?? null)
     setMyRole(bootMe.role)
     setMyCompanyId(companyId)
     skipNextDebouncedLoadRef.current = true
-    loadUsers({ companyId })
+    loadUsers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bootMe, isBootLoading, bootError])
+  }, [bootMe, bootClients, isBootLoading, bootError])
 
   useEffect(() => {
     if (!myCompanyId) return

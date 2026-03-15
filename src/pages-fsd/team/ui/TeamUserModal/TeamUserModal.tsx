@@ -24,6 +24,7 @@ import type {
   UserPointAccessResponse,
   UserProjectAccessResponse,
 } from '../../model/types'
+import { getApiErrorMessage } from '../../lib/getApiErrorMessage'
 
 import styles from './TeamUserModal.module.css'
 import { TeamUserModalDistributionTab } from './TeamUserModalDistributionTab'
@@ -137,6 +138,7 @@ export function TeamUserModal ({
 
   const [companiesAccess, setCompaniesAccess] = useState<UserCompaniesAccessResponse | null>(null)
   const [companiesError, setCompaniesError] = useState<string | null>(null)
+  const [isCompanyAccessSaving, setIsCompanyAccessSaving] = useState(false)
   const [activeDistributionCompanyId, setActiveDistributionCompanyId] = useState<string | null>(null)
   const [dist, setDist] = useState<UserCompanyDistributionResponse | null>(null)
   const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({})
@@ -244,6 +246,7 @@ export function TeamUserModal ({
     }
     let isAlive = true
     setDistError(null)
+    setDistDraft({ filterValues: {}, pointIds: [] })
     Promise.all([
       axiosMainRequest.get<UserCompanyDistributionResponse>(apiRoutes.team.userCompanyDistribution(uid, cid)),
       axiosMainRequest.get<CompanyFilterValuesResponse>(apiRoutes.team.companyFilterValues(cid)),
@@ -406,15 +409,24 @@ export function TeamUserModal ({
     if (next) nextIds.add(cid)
     else nextIds.delete(cid)
     const payload: ReplaceUserCompaniesAccessRequest = { companyIds: [...nextIds] }
+    setIsCompanyAccessSaving(true)
     axiosMainRequest
       .put<UserCompaniesAccessResponse>(apiRoutes.team.userCompaniesAccess(user.id), payload)
       .then((res) => setCompaniesAccess(res.data))
-      .catch(() => null)
+      .catch((err: unknown) => setCompaniesError(getApiErrorMessage(err)))
+      .finally(() => setIsCompanyAccessSaving(false))
   }
 
   const handleSaveDistribution = () => {
     const userId = user?.id
-    if (!userId || !activeDistributionCompanyId) return
+    const companyId = activeDistributionCompanyId
+    if (!userId || !companyId || isCompanyAccessSaving) return
+    const isHomeCompany = companyId === user?.company?.id
+    const hasClientAccess = Boolean((companiesAccess?.items ?? []).find((x) => x.id === companyId)?.hasAccess)
+    if (!isHomeCompany && !hasClientAccess) {
+      setDistError('Сначала выдайте доступ пользователю к клиенту')
+      return
+    }
     setIsDistSaving(true)
     setDistError(null)
     const payload: ReplaceUserCompanyDistributionRequest = {
@@ -422,9 +434,9 @@ export function TeamUserModal ({
       pointIds: distDraft.pointIds ?? [],
     }
     axiosMainRequest
-      .put<UserCompanyDistributionResponse>(apiRoutes.team.userCompanyDistribution(userId, activeDistributionCompanyId), payload)
+      .put<UserCompanyDistributionResponse>(apiRoutes.team.userCompanyDistribution(userId, companyId), payload)
       .then((res) => setDist(res.data))
-      .catch((err: unknown) => setDistError(err instanceof Error ? err.message : 'Не удалось сохранить'))
+      .catch((err: unknown) => setDistError(getApiErrorMessage(err)))
       .finally(() => setIsDistSaving(false))
   }
 
@@ -464,6 +476,7 @@ export function TeamUserModal ({
         companiesAccess={companiesAccess}
         companiesError={companiesError}
         distError={distError}
+        isCompanyAccessSaving={isCompanyAccessSaving}
         activeDistributionCompanyId={activeDistributionCompanyId}
         filterOptions={filterOptions}
         filterTitles={filterTitles}
