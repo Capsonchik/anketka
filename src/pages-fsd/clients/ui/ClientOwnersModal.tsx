@@ -46,7 +46,7 @@ export function ClientOwnersModal ({
   const [items, setItems] = useState<ClientOwnerItem[]>([])
   const [email, setEmail] = useState('')
 
-  const title = useMemo(() => (clientName ? `Овнеры клиента: ${clientName}` : 'Овнеры клиента'), [clientName])
+  const title = useMemo(() => (clientName ? `Владельцы клиента: ${clientName}` : 'Владельцы клиента'), [clientName])
 
   async function load () {
     if (!clientId) return
@@ -90,7 +90,7 @@ export function ClientOwnersModal ({
 
   async function revoke (ownerUserId: string) {
     if (!clientId) return
-    if (!window.confirm('Снять доступ у овнера к этому клиенту?')) return
+    if (!window.confirm('Снять доступ у владельца к этому клиенту?')) return
     setIsSaving(true)
     setError(null)
     try {
@@ -141,7 +141,7 @@ export function ClientOwnersModal ({
               </Button>
             </div>
           ))}
-          {!items.length && !isLoading ? <div className={styles.hint}>Овнеров пока нет</div> : null}
+          {!items.length && !isLoading ? <div className={styles.hint}>Владельцев пока нет</div> : null}
         </div>
       </Modal.Body>
       <Modal.Footer>

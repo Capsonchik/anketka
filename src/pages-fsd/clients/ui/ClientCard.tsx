@@ -37,7 +37,7 @@ export function ClientCard ({ client, onEdit, onToggleArchive, onOwners }: Props
         >
           <Image src="/icons/archive.svg" alt="" width={16} height={16} aria-hidden="true" />
         </button>
-        <button type="button" className={styles.iconButton} aria-label="Овнеры" title="Овнеры" onClick={onOwners}>
+        <button type="button" className={styles.iconButton} aria-label="Владельцы" title="Владельцы" onClick={onOwners}>
           <Image src="/icons/user.svg" alt="" width={16} height={16} aria-hidden="true" />
         </button>
       </div>

@@ -21,6 +21,10 @@
   color: var(--text-secondary);
 }
 
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
 .linkButton {
   padding: 0;
   border: 0;

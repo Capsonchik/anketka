@@ -247,6 +247,27 @@ function ClientEditModalInner ({
           </div>
 
           <div className={styles.row}>
+            <div className={styles.label}>Адресная программа (АП)</div>
+            {client.baseApProjectId ? (
+              <div className={styles.inlineRow}>
+                <div className={styles.hint}>
+                  Загружена, projectId: <span className={styles.mono}>{client.baseApProjectId}</span>
+                </div>
+                <button
+                  type="button"
+                  className={[styles.hint, styles.linkButton].filter(Boolean).join(' ')}
+                  onClick={() => window.open(`/projects/${client.baseApProjectId}`, '_blank', 'noopener,noreferrer')}
+                  disabled={isBusy}
+                >
+                  Открыть АП
+                </button>
+              </div>
+            ) : (
+              <div className={styles.hint}>Не загружена</div>
+            )}
+          </div>
+
+          <div className={styles.row}>
             <div className={styles.label}>Лого</div>
             <div className={styles.inlineRow}>
               <Uploader

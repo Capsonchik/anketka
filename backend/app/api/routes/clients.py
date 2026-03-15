@@ -46,6 +46,14 @@ def _ensure_owner (user: User) -> None:
     raise HTTPException(status_code=403, detail='Недостаточно прав')
 
 
+def _ensure_owner_or_admin (user: User) -> None:
+  if (user.platform_role or 'user') == 'owner':
+    return
+  if user.role == UserRole.admin:
+    return
+  raise HTTPException(status_code=403, detail='Недостаточно прав')
+
+
 def _uploads_root () -> str:
   return os.getenv('UPLOAD_ROOT', 'uploads')
 
@@ -66,6 +74,29 @@ async def _ensure_owner_access (db: AsyncSession, *, owner_user_id: UUID, compan
   )
   if res.scalar_one_or_none() is None:
     raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+
+
+async def _ensure_client_admin_access (db: AsyncSession, *, actor: User, company_id: UUID) -> None:
+  if actor.company_id == company_id:
+    return
+  res = await db.execute(
+    select(UserCompanyAccess.id).where(
+      UserCompanyAccess.user_id == actor.id,
+      UserCompanyAccess.company_id == company_id,
+    ),
+  )
+  if res.scalar_one_or_none() is None:
+    raise HTTPException(status_code=403, detail='Нет доступа к клиенту')
+
+
+async def _ensure_client_owner_or_admin_access (db: AsyncSession, *, actor: User, company_id: UUID) -> None:
+  if (actor.platform_role or 'user') == 'owner':
+    await _ensure_owner_access(db, owner_user_id=actor.id, company_id=company_id)
+    return
+  if actor.role == UserRole.admin:
+    await _ensure_client_admin_access(db, actor=actor, company_id=company_id)
+    return
+  raise HTTPException(status_code=403, detail='Недостаточно прав')
 
 
 async def _get_settings (db: AsyncSession, company_id: UUID) -> CompanySettings:
@@ -746,8 +777,8 @@ async def list_client_owners (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> ClientOwnersResponse:
-  _ensure_owner(current_user)
-  await _ensure_owner_access(db, owner_user_id=current_user.id, company_id=client_id)
+  _ensure_owner_or_admin(current_user)
+  await _ensure_client_owner_or_admin_access(db, actor=current_user, company_id=client_id)
 
   stmt = (
     select(OwnerCompanyAccess.owner_user_id, User.email, OwnerCompanyAccess.created_at)
@@ -769,8 +800,8 @@ async def grant_client_owner (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> ClientOwnersResponse:
-  _ensure_owner(current_user)
-  await _ensure_owner_access(db, owner_user_id=current_user.id, company_id=client_id)
+  _ensure_owner_or_admin(current_user)
+  await _ensure_client_owner_or_admin_access(db, actor=current_user, company_id=client_id)
 
   res = await db.execute(select(User).where(func.lower(User.email) == str(payload.email).strip().lower()))
   user = res.scalar_one_or_none()
@@ -794,8 +825,8 @@ async def revoke_client_owner (
   db: AsyncSession = Depends(get_db),
   current_user: User = Depends(get_current_user),
 ) -> ClientOwnersResponse:
-  _ensure_owner(current_user)
-  await _ensure_owner_access(db, owner_user_id=current_user.id, company_id=client_id)
+  _ensure_owner_or_admin(current_user)
+  await _ensure_client_owner_or_admin_access(db, actor=current_user, company_id=client_id)
 
   cnt_res = await db.execute(
     select(func.count()).select_from(OwnerCompanyAccess).where(OwnerCompanyAccess.company_id == client_id),
