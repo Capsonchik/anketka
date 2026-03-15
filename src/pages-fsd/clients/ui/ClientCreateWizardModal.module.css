@@ -62,3 +62,30 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
+.previewTableWrap {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid rgba(10, 30, 60, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.previewTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.previewTable th,
+.previewTable td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.08);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  vertical-align: top;
+}
+
+.previewRowWarning td {
+  background: rgba(255, 200, 80, 0.12);
+}
+

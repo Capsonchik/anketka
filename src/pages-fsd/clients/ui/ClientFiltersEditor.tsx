@@ -71,24 +71,6 @@ function uniqKey (base: string, keys: Set<string>) {
   return `${base}_${Date.now()}`
 }
 
-function parseValues (value: string) {
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const raw of String(value || '').split(',')) {
-    const v = raw.trim()
-    if (!v) continue
-    if (!seen.has(v)) {
-      seen.add(v)
-      out.push(v)
-    }
-  }
-  return out
-}
-
-function fmtValues (values: string[] | undefined) {
-  return (values ?? []).join(', ')
-}
-
 export function ClientFiltersEditor ({
   value,
   categoryPreset,
@@ -128,7 +110,7 @@ export function ClientFiltersEditor ({
         >
           Очистить
         </Button>
-        <div className={styles.valuesHint}>Значения для списков можно оставить пустыми — позже подтянем их из АП.</div>
+        <div className={styles.valuesHint}>Значения подтягиваются из АП автоматически.</div>
       </div>
 
       <div className={styles.grid}>
@@ -136,12 +118,10 @@ export function ClientFiltersEditor ({
           <div>Название</div>
           <div>Ключ</div>
           <div>Тип</div>
-          <div>Значения (через запятую)</div>
           <div />
         </div>
 
         {value.map((f, idx) => {
-          const isEnum = f.type === 'enum' || f.type === 'multi_enum'
           return (
             <div key={`${f.key}-${idx}`} className={styles.row}>
               <Input
@@ -155,7 +135,11 @@ export function ClientFiltersEditor ({
               <Input
                 value={f.key}
                 onChange={(v) => {
-                  const next = slug(String(v ?? ''))
+                  const next = String(v ?? '')
+                  onChange(value.map((x, i) => (i === idx ? { ...x, key: next } : x)))
+                }}
+                onBlur={() => {
+                  const next = slug(f.key)
                   const nextKey = next && next !== f.key ? uniqKey(next, new Set([...keys].filter((k) => k !== f.key))) : f.key
                   onChange(value.map((x, i) => (i === idx ? { ...x, key: nextKey } : x)))
                 }}
@@ -171,15 +155,6 @@ export function ClientFiltersEditor ({
                 cleanable={false}
                 searchable={false}
                 block
-              />
-              <Input
-                value={fmtValues(f.values)}
-                onChange={(v) => {
-                  const values = parseValues(String(v ?? ''))
-                  onChange(value.map((x, i) => (i === idx ? { ...x, values } : x)))
-                }}
-                placeholder={isEnum ? 'например: Гипер, Супер, Мини' : '—'}
-                disabled={!isEnum}
               />
               <Button
                 type="button"

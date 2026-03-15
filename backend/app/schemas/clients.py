@@ -47,6 +47,23 @@ class ClientApUploadResponse(BaseModel):
   updated: int
 
 
+class ClientApPreviewRow(BaseModel):
+  name: str | None = None
+  code: str | None = None
+  address: str | None = None
+  city: str | None = None
+  region: str | None = None
+  reg: str | None = None
+  latitude: str | None = None
+  longitude: str | None = None
+
+
+class ClientApPreviewResponse(BaseModel):
+  headers: list[str]
+  totalRows: int
+  rows: list[ClientApPreviewRow]
+
+
 class ClientUsersImportError(BaseModel):
   row: int
   message: str
@@ -57,6 +74,22 @@ class ClientUsersImportResponse(BaseModel):
   updated: int
   skipped: int
   errors: list[ClientUsersImportError] | None = None
+
+
+class ClientUsersImportPreviewRow(BaseModel):
+  email: str | None = None
+  firstName: str | None = None
+  lastName: str | None = None
+  role: str | None = None
+  phone: str | None = None
+  note: str | None = None
+  password: str | None = None
+
+
+class ClientUsersImportPreviewResponse(BaseModel):
+  headers: list[str]
+  totalRows: int
+  rows: list[ClientUsersImportPreviewRow]
 
 
 class ClientOwnerItem(BaseModel):

@@ -6,8 +6,9 @@ import { Button as RsuiteButton, Input, Loader, Modal, SelectPicker, Uploader } 
 import axiosMainRequest, { MAIN_API } from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import { Button } from '@/shared/ui'
+import type { ShopPointItem, ShopPointsResponse } from '@/pages-fsd/project/model/types'
 
-import type { ClientItem, UpdateClientRequest } from '../model/types'
+import type { ClientApUploadResponse, ClientItem, UpdateClientRequest } from '../model/types'
 import type { ClientFilterDef } from './ClientFiltersEditor'
 import { ClientFiltersEditor } from './ClientFiltersEditor'
 
@@ -67,7 +68,7 @@ function ClientEditModalInner ({
   onSaved: () => void
   onChanged?: () => void
 }) {
-  const [busyKind, setBusyKind] = useState<'save' | 'uploadLogo' | 'uploadBackground' | null>(null)
+  const [busyKind, setBusyKind] = useState<'save' | 'uploadLogo' | 'uploadBackground' | 'uploadAp' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const [client, setClient] = useState<ClientItem>(() => initialClient)
@@ -78,12 +79,17 @@ function ClientEditModalInner ({
   const [filters, setFilters] = useState<ClientFilterDef[]>(() => (initialClient.filters as ClientFilterDef[]) ?? [])
   const [logoFiles, setLogoFiles] = useState<RsuiteUploadFile[]>(() => makeUploadedFileList(initialClient.logoUrl, 'logo'))
   const [backgroundFiles, setBackgroundFiles] = useState<RsuiteUploadFile[]>(() => makeUploadedFileList(initialClient.backgroundUrl, 'background'))
+  const [apFile, setApFile] = useState<File | null>(null)
+  const [apResult, setApResult] = useState<ClientApUploadResponse | null>(null)
+  const [apPoints, setApPoints] = useState<ShopPointItem[]>([])
+  const [apPreviewError, setApPreviewError] = useState<string | null>(null)
 
   const presetKey = useMemo(() => ((category ?? 'other') as 'retail' | 'auto' | 'bank' | 'other'), [category])
   const isBusy = busyKind !== null
   const isSaving = busyKind === 'save'
   const isUploadingLogo = busyKind === 'uploadLogo'
   const isUploadingBackground = busyKind === 'uploadBackground'
+  const isUploadingAp = busyKind === 'uploadAp'
 
   async function save () {
     setBusyKind('save')
@@ -207,6 +213,53 @@ function ClientEditModalInner ({
   const logoHref = logoPreviewUrl ?? logoDirectHref
   const backgroundHref = backgroundPreviewUrl ?? backgroundDirectHref
 
+  useEffect(() => {
+    const projectId = client.baseApProjectId
+    if (!projectId) {
+      setApPoints([])
+      setApPreviewError(null)
+      return
+    }
+    let isAlive = true
+    setApPreviewError(null)
+    axiosMainRequest
+      .get<ShopPointsResponse>(apiRoutes.projects.addressbook(projectId))
+      .then((res) => {
+        if (!isAlive) return
+        setApPoints((res.data.items ?? []).slice(0, 20))
+      })
+      .catch((err: unknown) => {
+        if (!isAlive) return
+        setApPoints([])
+        setApPreviewError(getApiErrorMessage(err))
+      })
+    return () => {
+      isAlive = false
+    }
+  }, [client.baseApProjectId])
+
+  async function uploadAp () {
+    if (!apFile) return
+    setBusyKind('uploadAp')
+    setError(null)
+    setApResult(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', apFile)
+      const res = await axiosMainRequest.post<ClientApUploadResponse>(apiRoutes.clients.apUpload(client.id), fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setApResult(res.data)
+      setApFile(null)
+      await refreshClient()
+      onChanged?.()
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err))
+    } finally {
+      setBusyKind(null)
+    }
+  }
+
   function applyThemePreset () {
     setTheme((p) => ({
       ...p,
@@ -249,22 +302,51 @@ function ClientEditModalInner ({
           <div className={styles.row}>
             <div className={styles.label}>Адресная программа (АП)</div>
             {client.baseApProjectId ? (
-              <div className={styles.inlineRow}>
+              <div className={styles.row}>
                 <div className={styles.hint}>
                   Загружена, projectId: <span className={styles.mono}>{client.baseApProjectId}</span>
                 </div>
-                <button
-                  type="button"
-                  className={[styles.hint, styles.linkButton].filter(Boolean).join(' ')}
-                  onClick={() => window.open(`/projects/${client.baseApProjectId}`, '_blank', 'noopener,noreferrer')}
-                  disabled={isBusy}
-                >
-                  Открыть АП
-                </button>
+                {apPreviewError ? <div className={styles.error}>{apPreviewError}</div> : null}
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>code</th>
+                        <th>name</th>
+                        <th>address</th>
+                        <th>city</th>
+                        <th>region</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {apPoints.map((point) => (
+                        <tr key={point.id}>
+                          <td>{point.code || '—'}</td>
+                          <td>{point.pointName || point.chain?.name || '—'}</td>
+                          <td>{point.address || '—'}</td>
+                          <td>{point.cityName || '—'}</td>
+                          <td>{point.regionCode || '—'}</td>
+                        </tr>
+                      ))}
+                      {!apPoints.length ? (
+                        <tr>
+                          <td colSpan={5}>Точки АП пока не найдены</td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : (
               <div className={styles.hint}>Не загружена</div>
             )}
+            <div className={styles.inlineRow}>
+              <input type="file" accept=".xlsx,.csv" onChange={(e) => setApFile(e.target.files?.[0] ?? null)} />
+              <RsuiteButton appearance="subtle" size="sm" loading={isUploadingAp} disabled={isBusy || !apFile} onClick={uploadAp}>
+                Загрузить/обновить АП
+              </RsuiteButton>
+            </div>
+            {apResult ? <div className={styles.hint}>Создано: {apResult.created} · Обновлено: {apResult.updated}</div> : null}
           </div>
 
           <div className={styles.row}>

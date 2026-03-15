@@ -31,6 +31,23 @@ export type ClientApUploadResponse = {
   updated: number
 }
 
+export type ClientApPreviewRow = {
+  name: string | null
+  code: string | null
+  address: string | null
+  city: string | null
+  region: string | null
+  reg: string | null
+  latitude: string | null
+  longitude: string | null
+}
+
+export type ClientApPreviewResponse = {
+  headers: string[]
+  totalRows: number
+  rows: ClientApPreviewRow[]
+}
+
 export type ClientUsersImportError = {
   row: number
   message: string
@@ -41,6 +58,22 @@ export type ClientUsersImportResponse = {
   updated: number
   skipped: number
   errors?: ClientUsersImportError[] | null
+}
+
+export type ClientUsersImportPreviewRow = {
+  email: string | null
+  firstName: string | null
+  lastName: string | null
+  role: string | null
+  phone: string | null
+  note: string | null
+  password: string | null
+}
+
+export type ClientUsersImportPreviewResponse = {
+  headers: string[]
+  totalRows: number
+  rows: ClientUsersImportPreviewRow[]
 }
 
 export type ClientOwnerItem = {

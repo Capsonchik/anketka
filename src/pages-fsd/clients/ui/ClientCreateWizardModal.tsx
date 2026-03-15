@@ -9,7 +9,9 @@ import { Button } from '@/shared/ui'
 
 import type {
   ClientApUploadResponse,
+  ClientApPreviewResponse,
   ClientItem,
+  ClientUsersImportPreviewResponse,
   ClientUsersImportResponse,
   CreateClientRequest,
   UpdateClientRequest,
@@ -73,9 +75,11 @@ export function ClientCreateWizardModal ({
 
   const [apFile, setApFile] = useState<File | null>(null)
   const [apResult, setApResult] = useState<ClientApUploadResponse | null>(null)
+  const [apPreview, setApPreview] = useState<ClientApPreviewResponse | null>(null)
 
   const [usersFile, setUsersFile] = useState<File | null>(null)
   const [usersResult, setUsersResult] = useState<ClientUsersImportResponse | null>(null)
+  const [usersPreview, setUsersPreview] = useState<ClientUsersImportPreviewResponse | null>(null)
 
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -97,8 +101,10 @@ export function ClientCreateWizardModal ({
     setFilters([])
     setApFile(null)
     setApResult(null)
+    setApPreview(null)
     setUsersFile(null)
     setUsersResult(null)
+    setUsersPreview(null)
     setIsBusy(false)
     setError(null)
   }
@@ -199,6 +205,25 @@ export function ClientCreateWizardModal ({
     }
   }
 
+  async function previewAp () {
+    if (!client || !apFile) return
+    setIsBusy(true)
+    setError(null)
+    setApPreview(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', apFile)
+      const res = await axiosMainRequest.post<ClientApPreviewResponse>(`${apiRoutes.clients.client(client.id)}/ap/preview`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setApPreview(res.data)
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err))
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
   async function importUsers () {
     if (!client || !usersFile) return
     setIsBusy(true)
@@ -211,6 +236,25 @@ export function ClientCreateWizardModal ({
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       setUsersResult(res.data)
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err))
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function previewUsersImport () {
+    if (!client || !usersFile) return
+    setIsBusy(true)
+    setError(null)
+    setUsersPreview(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', usersFile)
+      const res = await axiosMainRequest.post<ClientUsersImportPreviewResponse>(`${apiRoutes.clients.usersImport(client.id)}/preview`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setUsersPreview(res.data)
     } catch (err: unknown) {
       setError(getApiErrorMessage(err))
     } finally {
@@ -329,11 +373,71 @@ export function ClientCreateWizardModal ({
           <div className={styles.grid}>
             <div className={styles.row}>
               <div className={styles.label}>Загрузить АП (Excel/CSV)</div>
-              <input type="file" accept=".xlsx,.csv" onChange={(e) => setApFile(e.target.files?.[0] ?? null)} />
-              <Button type="button" variant="secondary" disabled={!apFile || isBusy} onClick={uploadAp}>
-                Загрузить
-              </Button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="file"
+                  accept=".xlsx,.csv"
+                  onChange={(e) => {
+                    setApFile(e.target.files?.[0] ?? null)
+                    setApPreview(null)
+                    setApResult(null)
+                  }}
+                />
+                <Button type="button" variant="ghost" disabled={isBusy} onClick={() => downloadTextFile('ap-template.csv', AP_TEMPLATE_CSV)}>
+                  Скачать макет (.csv)
+                </Button>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Button type="button" variant="secondary" disabled={!apFile || isBusy} onClick={previewAp}>
+                  Проверить файл
+                </Button>
+                <Button type="button" variant="secondary" disabled={!apFile || isBusy} onClick={uploadAp}>
+                  Загрузить
+                </Button>
+              </div>
+              <div className={styles.hint}>Поддерживаются поля: name, code, address, city, region, reg, latitude, longitude.</div>
               {apResult ? <div className={styles.hint}>Создано: {apResult.created} · Обновлено: {apResult.updated}</div> : null}
+              {apPreview ? (
+                <div className={styles.row}>
+                  <div className={styles.hint}>Распознано строк: {apPreview.totalRows} (показаны первые {apPreview.rows.length})</div>
+                  <div className={styles.previewTableWrap}>
+                    <table className={styles.previewTable}>
+                      <thead>
+                        <tr>
+                          <th>статус</th>
+                          <th>name</th>
+                          <th>code</th>
+                          <th>address</th>
+                          <th>city</th>
+                          <th>region</th>
+                          <th>reg</th>
+                          <th>latitude</th>
+                          <th>longitude</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {apPreview.rows.map((row, idx) => {
+                          const issues = getApRowIssues(row)
+                          const hasIssues = issues.length > 0
+                          return (
+                            <tr key={`${row.code ?? 'row'}-${idx}`} className={hasIssues ? styles.previewRowWarning : ''}>
+                              <td>{hasIssues ? `Не распознано: ${issues.join(', ')}` : 'OK'}</td>
+                              <td>{row.name ?? '—'}</td>
+                              <td>{row.code ?? '—'}</td>
+                              <td>{row.address ?? '—'}</td>
+                              <td>{row.city ?? '—'}</td>
+                              <td>{row.region ?? '—'}</td>
+                              <td>{row.reg ?? '—'}</td>
+                              <td>{row.latitude ?? '—'}</td>
+                              <td>{row.longitude ?? '—'}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -342,10 +446,61 @@ export function ClientCreateWizardModal ({
           <div className={styles.grid}>
             <div className={styles.row}>
               <div className={styles.label}>Импорт пользователей (Excel/CSV)</div>
-              <input type="file" accept=".xlsx,.csv" onChange={(e) => setUsersFile(e.target.files?.[0] ?? null)} />
-              <Button type="button" variant="secondary" disabled={!usersFile || isBusy} onClick={importUsers}>
-                Импортировать
-              </Button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="file"
+                  accept=".xlsx,.csv"
+                  onChange={(e) => {
+                    setUsersFile(e.target.files?.[0] ?? null)
+                    setUsersPreview(null)
+                    setUsersResult(null)
+                  }}
+                />
+                <Button type="button" variant="ghost" disabled={isBusy} onClick={() => downloadTextFile('users-import-template.csv', USERS_TEMPLATE_CSV)}>
+                  Скачать макет (.csv)
+                </Button>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Button type="button" variant="secondary" disabled={!usersFile || isBusy} onClick={previewUsersImport}>
+                  Проверить файл
+                </Button>
+                <Button type="button" variant="secondary" disabled={!usersFile || isBusy} onClick={importUsers}>
+                  Импортировать
+                </Button>
+              </div>
+              {usersPreview ? (
+                <div className={styles.row}>
+                  <div className={styles.hint}>Распознано строк: {usersPreview.totalRows} (показаны первые {usersPreview.rows.length})</div>
+                  <div className={styles.previewTableWrap}>
+                    <table className={styles.previewTable}>
+                      <thead>
+                        <tr>
+                          <th>email</th>
+                          <th>firstName</th>
+                          <th>lastName</th>
+                          <th>role</th>
+                          <th>phone</th>
+                          <th>note</th>
+                          <th>password</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {usersPreview.rows.map((row, idx) => (
+                          <tr key={`${row.email ?? 'row'}-${idx}`}>
+                            <td>{row.email ?? '—'}</td>
+                            <td>{row.firstName ?? '—'}</td>
+                            <td>{row.lastName ?? '—'}</td>
+                            <td>{row.role ?? '—'}</td>
+                            <td>{row.phone ?? '—'}</td>
+                            <td>{row.note ?? '—'}</td>
+                            <td>{row.password ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
               {usersResult ? (
                 <div className={styles.hint}>
                   Создано: {usersResult.created} · Обновлено: {usersResult.updated} · Пропущено: {usersResult.skipped}
@@ -403,6 +558,10 @@ export function ClientCreateWizardModal ({
                   setStep(3)
                   return
                 }
+                if (step === 3) {
+                  await saveFilters()
+                  return
+                }
                 if (step === 4) {
                   setStep(5)
                   return
@@ -422,5 +581,33 @@ export function ClientCreateWizardModal ({
       </Modal.Footer>
     </Modal>
   )
+}
+
+const AP_TEMPLATE_CSV = [
+  'name,code,address,city,region,reg,latitude,longitude',
+  '"Точка 001","001","Москва, ул. Пример, 1","Москва","Московская область","Регион 1","55.751244","37.618423"',
+].join('\n')
+
+const USERS_TEMPLATE_CSV = [
+  'email,firstName,lastName,role,phone,note,password',
+  'user@example.com,Иван,Иванов,manager,+79990000000,Импорт клиента,',
+].join('\n')
+
+function downloadTextFile (filename: string, text: string) {
+  if (typeof window === 'undefined') return
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' })
+  const url = window.URL.createObjectURL(blob)
+  const a = window.document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 30_000)
+}
+
+function getApRowIssues (row: ClientApPreviewResponse['rows'][number]) {
+  const issues: string[] = []
+  if (!row.name) issues.push('name')
+  if (!row.code) issues.push('code')
+  return issues
 }
 

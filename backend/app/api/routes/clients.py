@@ -25,9 +25,13 @@ from app.models.user import User
 from app.models.user_role import UserRole
 from app.schemas.clients import (
   ClientApUploadResponse,
+  ClientApPreviewResponse,
+  ClientApPreviewRow,
   ClientOwnerItem,
   ClientOwnersResponse,
   ClientPublic,
+  ClientUsersImportPreviewResponse,
+  ClientUsersImportPreviewRow,
   ClientsResponse,
   ClientUsersImportError,
   ClientUsersImportResponse,
@@ -466,6 +470,8 @@ async def upload_client_ap (
     address = pick(r, ['address', 'адрес'])
     region_in = pick(r, ['region', 'регион', 'region_code', 'reg_id'])
     city_in = pick(r, ['city', 'город'])
+    latitude = pick(r, ['latitude', 'lat', 'широта', 'geo_lat'])
+    longitude = pick(r, ['longitude', 'lng', 'lon', 'долгота', 'geo_lon'])
     concat = pick(r, ['concat'])
 
     if not chain_name:
@@ -501,9 +507,22 @@ async def upload_client_ap (
       _lower_key('reg_id'),
       _lower_key('city'),
       _lower_key('город'),
+      _lower_key('latitude'),
+      _lower_key('lat'),
+      _lower_key('широта'),
+      _lower_key('geo_lat'),
+      _lower_key('longitude'),
+      _lower_key('lng'),
+      _lower_key('lon'),
+      _lower_key('долгота'),
+      _lower_key('geo_lon'),
       _lower_key('concat'),
     }
     attrs: dict[str, str] = {}
+    if latitude:
+      attrs['latitude'] = latitude[:250]
+    if longitude:
+      attrs['longitude'] = longitude[:250]
     for rk, rv in r.items():
       k = _lower_key(rk)
       if not k or k in known_keys:
@@ -547,6 +566,44 @@ async def upload_client_ap (
   return ClientApUploadResponse(clientId=client_id, projectId=project_id, created=created, updated=updated)
 
 
+@router.post(
+  '/{client_id}/ap/preview',
+  response_model=ClientApPreviewResponse,
+  summary='Предпросмотр АП до импорта',
+)
+async def preview_client_ap (
+  client_id: UUID = Path(..., description='ID клиента'),
+  file: UploadFile = File(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> ClientApPreviewResponse:
+  _ensure_owner_or_admin(current_user)
+  await _ensure_client_owner_or_admin_access(db, actor=current_user, company_id=client_id)
+
+  raw = await file.read()
+  rows = _read_tabular_file(file, raw)
+  if not rows:
+    raise HTTPException(status_code=400, detail='Файл пустой или не удалось прочитать строки')
+
+  headers = list(rows[0].keys()) if rows else []
+  preview_rows: list[ClientApPreviewRow] = []
+  for r in rows[:20]:
+    preview_rows.append(
+      ClientApPreviewRow(
+        name=_pick_row_value(r, ['name', 'магазин', 'сеть', 'shop', 'shop_chain']),
+        code=_pick_row_value(r, ['code', 'код', 'id', 'точка', 'point', 'point_code']),
+        address=_pick_row_value(r, ['address', 'адрес']),
+        city=_pick_row_value(r, ['city', 'город']),
+        region=_pick_row_value(r, ['region', 'регион', 'region_name']),
+        reg=_pick_row_value(r, ['reg', 'region_code', 'reg_id']),
+        latitude=_pick_row_value(r, ['latitude', 'lat', 'широта', 'geo_lat']),
+        longitude=_pick_row_value(r, ['longitude', 'lng', 'lon', 'долгота', 'geo_lon']),
+      ),
+    )
+
+  return ClientApPreviewResponse(headers=headers, totalRows=len(rows), rows=preview_rows)
+
+
 def _normalize_email (value: str | None) -> str:
   return (value or '').strip().lower()
 
@@ -575,6 +632,61 @@ def _parse_role (value: str | None) -> UserRole | None:
 def _make_password (raw: str | None) -> str | None:
   s = (raw or '').strip()
   return s if s else None
+
+
+def _pick_row_value (row: dict[str, str], keys: list[str]) -> str | None:
+  for k in keys:
+    for rk, rv in row.items():
+      if _lower_key(rk) == _lower_key(k):
+        v = (rv or '').strip()
+        return v if v else None
+  return None
+
+
+@router.post(
+  '/{client_id}/users/import/preview',
+  response_model=ClientUsersImportPreviewResponse,
+  summary='Предпросмотр импорта пользователей',
+)
+async def preview_client_users_import (
+  client_id: UUID = Path(..., description='ID клиента'),
+  file: UploadFile = File(...),
+  db: AsyncSession = Depends(get_db),
+  current_user: User = Depends(get_current_user),
+) -> ClientUsersImportPreviewResponse:
+  _ensure_owner_or_admin(current_user)
+  await _ensure_client_owner_or_admin_access(db, actor=current_user, company_id=client_id)
+
+  raw = await file.read()
+  rows = _read_tabular_file(file, raw)
+  if not rows:
+    raise HTTPException(status_code=400, detail='Файл пустой или не удалось прочитать строки')
+
+  headers = list(rows[0].keys()) if rows else []
+  preview_rows: list[ClientUsersImportPreviewRow] = []
+  for r in rows[:20]:
+    first_name = _pick_row_value(r, ['имя', 'firstName', 'first_name'])
+    last_name = _pick_row_value(r, ['фамилия', 'lastName', 'last_name'])
+    fio = _pick_row_value(r, ['фио', 'fullName', 'full_name', 'name'])
+    if fio and (not first_name or not last_name):
+      parts = [x for x in fio.replace('\t', ' ').split(' ') if x.strip()]
+      if len(parts) >= 2:
+        last_name = last_name or parts[0]
+        first_name = first_name or parts[1]
+
+    preview_rows.append(
+      ClientUsersImportPreviewRow(
+        email=_pick_row_value(r, ['email', 'почта', 'e-mail']),
+        firstName=first_name,
+        lastName=last_name,
+        role=_pick_row_value(r, ['роль', 'role']),
+        phone=_pick_row_value(r, ['телефон', 'phone']),
+        note=_pick_row_value(r, ['заметка', 'note']),
+        password=_pick_row_value(r, ['password', 'пароль']),
+      ),
+    )
+
+  return ClientUsersImportPreviewResponse(headers=headers, totalRows=len(rows), rows=preview_rows)
 
 
 @router.post(
