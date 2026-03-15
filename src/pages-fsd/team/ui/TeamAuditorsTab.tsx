@@ -71,8 +71,13 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [search, setSearch] = useState('')
+  const [idFilter, setIdFilter] = useState('')
+  const [lastNameFilter, setLastNameFilter] = useState('')
+  const [emailFilter, setEmailFilter] = useState('')
+  const [phoneFilter, setPhoneFilter] = useState('')
   const [city, setCity] = useState('')
+  const [birthDateFilter, setBirthDateFilter] = useState<Date | null>(null)
+  const [genderFilter, setGenderFilter] = useState<AuditorGender | 'all'>('all')
   const [view, setView] = useState<TeamAuditorsViewMode>('cards')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -95,17 +100,54 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
 
   const fileRef = useRef<HTMLInputElement | null>(null)
 
-  const hasFilters = useMemo(() => search.trim().length > 0 || city.trim().length > 0, [city, search])
+  const hasFilters = useMemo(
+    () =>
+      idFilter.trim().length > 0
+      || lastNameFilter.trim().length > 0
+      || emailFilter.trim().length > 0
+      || phoneFilter.trim().length > 0
+      || city.trim().length > 0
+      || Boolean(birthDateFilter)
+      || genderFilter !== 'all',
+    [birthDateFilter, city, emailFilter, genderFilter, idFilter, lastNameFilter, phoneFilter],
+  )
 
-  async function load (opts?: { q?: string; city?: string }) {
+  function parsePublicId (value: string): number | null {
+    const normalized = value.trim().replace(/\s+/g, '')
+    if (!normalized || !/^\d+$/.test(normalized)) return null
+    const parsed = Number.parseInt(normalized, 10)
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) return null
+    return parsed
+  }
+
+  async function load (opts?: {
+    id?: string
+    lastName?: string
+    email?: string
+    phone?: string
+    city?: string
+    birthDate?: Date | null
+    gender?: AuditorGender | 'all'
+  }) {
     setIsLoading(true)
     setError(null)
     try {
-      const q = (opts?.q ?? search).trim()
+      const idRaw = (opts?.id ?? idFilter).trim()
+      const lastName = (opts?.lastName ?? lastNameFilter).trim()
+      const email = (opts?.email ?? emailFilter).trim()
+      const phone = (opts?.phone ?? phoneFilter).trim()
       const c = (opts?.city ?? city).trim()
+      const birthDate = opts?.birthDate ?? birthDateFilter
+      const gender = opts?.gender ?? genderFilter
       const params: Record<string, string> = {}
-      if (q) params.q = q
+      const publicId = parsePublicId(idRaw)
+      if (publicId !== null) params.publicId = String(publicId)
+      if (lastName) params.lastName = lastName
+      if (email) params.email = email
+      if (phone) params.phone = phone
       if (c) params.city = c
+      if (birthDate) params.birthDate = toIsoDate(birthDate)
+      if (gender !== 'all') params.gender = gender
 
       const res = await axiosMainRequest.get<AuditorsResponse>(apiRoutes.auditors.auditors, { params })
       setItems(res.data.items ?? [])
@@ -123,11 +165,19 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
 
   useEffect(() => {
     const t = window.setTimeout(() => {
-      load({ q: search, city })
+      load({
+        id: idFilter,
+        lastName: lastNameFilter,
+        email: emailFilter,
+        phone: phoneFilter,
+        city,
+        birthDate: birthDateFilter,
+        gender: genderFilter,
+      })
     }, 250)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, city])
+  }, [birthDateFilter, city, emailFilter, genderFilter, idFilter, lastNameFilter, phoneFilter])
 
   const isEmpty = !isLoading && !error && items.length === 0 && !hasFilters
   const isNoResults = !isLoading && !error && items.length === 0 && hasFilters
@@ -151,13 +201,22 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
     if (!isAdmin) return
     setError(null)
     try {
-      const q = search.trim()
+      const idRaw = idFilter.trim()
+      const lastName = lastNameFilter.trim()
+      const email = emailFilter.trim()
+      const phone = phoneFilter.trim()
       const c = city.trim()
+      const publicId = parsePublicId(idRaw)
       await downloadApiFile({
         url: apiRoutes.auditors.export,
         params: {
-          q: q || undefined,
+          publicId: publicId !== null ? String(publicId) : undefined,
+          lastName: lastName || undefined,
+          email: email || undefined,
+          phone: phone || undefined,
           city: c || undefined,
+          birthDate: birthDateFilter ? toIsoDate(birthDateFilter) : undefined,
+          gender: genderFilter !== 'all' ? genderFilter : undefined,
         },
         fallbackFilename: 'auditors.xlsx',
       })
@@ -166,7 +225,7 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
     }
   }
 
-  useImperativeHandle(ref, () => ({ openCreate, openImport, exportXlsx }), [isAdmin, search, city])
+  useImperativeHandle(ref, () => ({ openCreate, openImport, exportXlsx }), [birthDateFilter, city, emailFilter, genderFilter, idFilter, isAdmin, lastNameFilter, phoneFilter])
 
   function openEdit (a: AuditorItem) {
     setEditError(null)
@@ -335,11 +394,37 @@ export const TeamAuditorsTab: ForwardRefExoticComponent<
       <div className={styles.filters}>
         <Input
           size="sm"
-          value={search}
-          onChange={(v) => setSearch(String(v ?? ''))}
-          placeholder="Поиск по ФИО / телефону / почте…"
+          value={idFilter}
+          onChange={(v) => setIdFilter(String(v ?? ''))}
+          placeholder="ID (например 123456)…"
         />
+        <Input size="sm" value={lastNameFilter} onChange={(v) => setLastNameFilter(String(v ?? ''))} placeholder="Фамилия…" />
+        <Input size="sm" value={emailFilter} onChange={(v) => setEmailFilter(String(v ?? ''))} placeholder="Email…" />
+        <Input size="sm" value={phoneFilter} onChange={(v) => setPhoneFilter(String(v ?? ''))} placeholder="Телефон…" />
         <Input size="sm" value={city} onChange={(v) => setCity(String(v ?? ''))} placeholder="Город…" />
+        <DatePicker
+          oneTap
+          value={birthDateFilter}
+          onChange={(v) => setBirthDateFilter(v ?? null)}
+          placeholder="Дата рождения…"
+          format="dd.MM.yyyy"
+          block
+          cleanable
+          size="sm"
+        />
+        <SelectPicker
+          size="sm"
+          value={genderFilter}
+          onChange={(v) => setGenderFilter((v as AuditorGender | 'all') ?? 'all')}
+          cleanable={false}
+          searchable={false}
+          block
+          data={[
+            { label: 'Все', value: 'all' },
+            { label: 'Мужской', value: 'male' },
+            { label: 'Женский', value: 'female' },
+          ]}
+        />
         <div className={styles.viewToggle}>
           <TeamAuditorsViewToggle value={view} onChange={setView} />
         </div>

@@ -185,8 +185,13 @@ async def _exists_duplicate_excluding (
 )
 async def list_auditors (
   q: str | None = Query(default=None, description='Поиск по ФИО, почте или телефону'),
+  publicId: int | None = Query(default=None, description='Фильтр по публичному ID'),
+  lastName: str | None = Query(default=None, description='Фильтр по фамилии'),
+  email: str | None = Query(default=None, description='Фильтр по email'),
+  phone: str | None = Query(default=None, description='Фильтр по телефону'),
   city: str | None = Query(default=None, description='Фильтр по городу'),
   gender: AuditorGender | None = Query(default=None, description='Фильтр по полу'),
+  birthDate: date | None = Query(default=None, description='Фильтр по дате рождения'),
   birthDateFrom: date | None = Query(default=None, description='Дата рождения от'),
   birthDateTo: date | None = Query(default=None, description='Дата рождения до'),
   db: AsyncSession = Depends(get_db),
@@ -205,10 +210,20 @@ async def list_auditors (
         func.coalesce(Auditor.phone, '').ilike(like),
       ),
     )
+  if publicId is not None:
+    stmt = stmt.where(Auditor.public_id == publicId)
+  if lastName:
+    stmt = stmt.where(Auditor.last_name.ilike(f'%{lastName.strip()}%'))
+  if email:
+    stmt = stmt.where(func.coalesce(Auditor.email, '').ilike(f'%{email.strip()}%'))
+  if phone:
+    stmt = stmt.where(func.coalesce(Auditor.phone, '').ilike(f'%{phone.strip()}%'))
   if city:
-    stmt = stmt.where(func.lower(Auditor.city) == city.strip().lower())
+    stmt = stmt.where(Auditor.city.ilike(f'%{city.strip()}%'))
   if gender:
     stmt = stmt.where(Auditor.gender == gender)
+  if birthDate is not None:
+    stmt = stmt.where(Auditor.birth_date == birthDate)
   if birthDateFrom is not None:
     stmt = stmt.where(Auditor.birth_date >= birthDateFrom)
   if birthDateTo is not None:
@@ -224,8 +239,13 @@ async def list_auditors (
 )
 async def export_auditors (
   q: str | None = Query(default=None, description='Поиск по ФИО, почте или телефону'),
+  publicId: int | None = Query(default=None, description='Фильтр по публичному ID'),
+  lastName: str | None = Query(default=None, description='Фильтр по фамилии'),
+  email: str | None = Query(default=None, description='Фильтр по email'),
+  phone: str | None = Query(default=None, description='Фильтр по телефону'),
   city: str | None = Query(default=None, description='Фильтр по городу'),
   gender: AuditorGender | None = Query(default=None, description='Фильтр по полу'),
+  birthDate: date | None = Query(default=None, description='Фильтр по дате рождения'),
   birthDateFrom: date | None = Query(default=None, description='Дата рождения от'),
   birthDateTo: date | None = Query(default=None, description='Дата рождения до'),
   db: AsyncSession = Depends(get_db),
@@ -246,10 +266,20 @@ async def export_auditors (
         func.coalesce(Auditor.phone, '').ilike(like),
       ),
     )
+  if publicId is not None:
+    stmt = stmt.where(Auditor.public_id == publicId)
+  if lastName:
+    stmt = stmt.where(Auditor.last_name.ilike(f'%{lastName.strip()}%'))
+  if email:
+    stmt = stmt.where(func.coalesce(Auditor.email, '').ilike(f'%{email.strip()}%'))
+  if phone:
+    stmt = stmt.where(func.coalesce(Auditor.phone, '').ilike(f'%{phone.strip()}%'))
   if city:
-    stmt = stmt.where(func.lower(Auditor.city) == city.strip().lower())
+    stmt = stmt.where(Auditor.city.ilike(f'%{city.strip()}%'))
   if gender:
     stmt = stmt.where(Auditor.gender == gender)
+  if birthDate is not None:
+    stmt = stmt.where(Auditor.birth_date == birthDate)
   if birthDateFrom is not None:
     stmt = stmt.where(Auditor.birth_date >= birthDateFrom)
   if birthDateTo is not None:
@@ -258,11 +288,12 @@ async def export_auditors (
   res = await db.execute(stmt)
   items = res.scalars().all()
 
-  headers = ['ID', 'Фамилия', 'Имя', 'Отчество', 'Телефон', 'Email', 'Город', 'Дата рождения', 'Пол', 'Дата создания']
+  headers = ['ID', 'UUID', 'Фамилия', 'Имя', 'Отчество', 'Телефон', 'Email', 'Город', 'Дата рождения', 'Пол', 'Дата создания']
   rows: list[list[object | None]] = []
   for auditor in items:
     rows.append(
       [
+        int(auditor.public_id),
         str(auditor.id),
         auditor.last_name,
         auditor.first_name,
