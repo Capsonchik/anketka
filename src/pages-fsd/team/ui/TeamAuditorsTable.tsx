@@ -20,6 +20,7 @@ export function TeamAuditorsTable ({
       <table className={styles.table}>
         <thead>
           <tr>
+            <th className={styles.th}>ID</th>
             <th className={styles.th}>ФИО</th>
             <th className={styles.th}>Контакты</th>
             <th className={styles.th}>Город</th>
@@ -31,6 +32,9 @@ export function TeamAuditorsTable ({
         <tbody>
           {items.map((auditor) => (
             <tr key={auditor.id}>
+              <td className={styles.td}>
+                <span className={styles.mono} title={auditor.id}>{auditor.publicId}</span>
+              </td>
               <td className={styles.td}>{formatName(auditor)}</td>
               <td className={styles.td}>
                 <div className={styles.mono}>{auditor.phone ?? '—'}</div>

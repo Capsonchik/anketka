@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, String, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,13 @@ class Auditor(Base):
   )
 
   id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+  public_id: Mapped[int] = mapped_column(
+    BigInteger,
+    unique=True,
+    index=True,
+    nullable=False,
+    server_default=text("nextval('projects.auditor_public_id_seq'::regclass)"),
+  )
 
   company_id: Mapped[UUID] = mapped_column(
     PG_UUID(as_uuid=True),

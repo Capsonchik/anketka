@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import axiosMainRequest from '@/api-config/api-config'
 import { apiRoutes } from '@/api-config/api-routes'
 import { userRoleLabels, userRoles, type UserRole } from '@/entities/user'
+import { Button } from '@/shared/ui'
 
 import styles from './PermissionsPage.module.css'
 
@@ -16,6 +17,12 @@ type PermissionItem = {
 type RoleDefaultsResponse = {
   byRole: Record<UserRole, string[]>
   availablePermissions: PermissionItem[]
+}
+
+type PermissionGroup = {
+  id: string
+  title: string
+  items: PermissionItem[]
 }
 
 function getApiErrorMessage (err: unknown): string {
@@ -33,6 +40,18 @@ function getApiErrorMessage (err: unknown): string {
 
 function cloneRoleMap (input: Record<UserRole, string[]>): Record<UserRole, string[]> {
   return Object.fromEntries(userRoles.map((role) => [role, [...(input[role] || [])]])) as Record<UserRole, string[]>
+}
+
+function getPermissionGroup (permissionKey: string): { id: string; title: string } {
+  if (permissionKey.startsWith('page.')) return { id: 'pages', title: 'Страницы' }
+  if (permissionKey.startsWith('media.')) return { id: 'media', title: 'Медиа' }
+  if (permissionKey.startsWith('checks.')) return { id: 'checks', title: 'Проверки' }
+  if (permissionKey.startsWith('notifications.')) return { id: 'notifications', title: 'Уведомления' }
+  if (permissionKey.startsWith('data.')) return { id: 'data', title: 'Данные' }
+  if (permissionKey.startsWith('users.')) return { id: 'users', title: 'Пользователи' }
+  if (permissionKey.startsWith('survey.')) return { id: 'survey', title: 'Анкеты' }
+  if (permissionKey.startsWith('tp.')) return { id: 'tp', title: 'Торговые представители' }
+  return { id: 'other', title: 'Прочее' }
 }
 
 export function PermissionsPage () {
@@ -54,6 +73,20 @@ export function PermissionsPage () {
     if (!savedByRole || !draftByRole) return false
     return JSON.stringify(savedByRole) !== JSON.stringify(draftByRole)
   }, [savedByRole, draftByRole])
+
+  const groupedPermissions = useMemo<PermissionGroup[]>(() => {
+    const groupMap = new Map<string, PermissionGroup>()
+    for (const item of availablePermissions) {
+      const group = getPermissionGroup(item.key)
+      const existing = groupMap.get(group.id)
+      if (existing) {
+        existing.items.push(item)
+        continue
+      }
+      groupMap.set(group.id, { id: group.id, title: group.title, items: [item] })
+    }
+    return Array.from(groupMap.values())
+  }, [availablePermissions])
 
   useEffect(() => {
     let isAlive = true
@@ -147,22 +180,34 @@ export function PermissionsPage () {
       </div>
 
       <div className={styles.panel}>
-        <div className={styles.list}>
-          {availablePermissions.map((item) => (
-            <label key={item.key} className={styles.row}>
-              <input type="checkbox" checked={selectedSet.has(item.key)} onChange={() => togglePermission(item.key)} />
-              <span className={styles.label}>{item.label}</span>
-              <span className={styles.key}>{item.key}</span>
-            </label>
+        <div className={styles.groups}>
+          {groupedPermissions.map((group) => (
+            <section key={group.id} className={styles.group}>
+              <div className={styles.groupHeader}>
+                <h2 className={styles.groupTitle}>{group.title}</h2>
+                <span className={styles.groupMeta}>
+                  {group.items.filter((item) => selectedSet.has(item.key)).length}/{group.items.length}
+                </span>
+              </div>
+              <div className={styles.list}>
+                {group.items.map((item) => (
+                  <label key={item.key} className={styles.row}>
+                    <input type="checkbox" checked={selectedSet.has(item.key)} onChange={() => togglePermission(item.key)} />
+                    <span className={styles.label}>{item.label}</span>
+                    <span className={styles.key}>{item.key}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
         <div className={styles.actions}>
-          <button type="button" className={styles.saveBtn} onClick={save} disabled={isSaving || !hasUnsavedChanges}>
+          <Button type="button" variant="primary" size="sm" onClick={save} disabled={isSaving || !hasUnsavedChanges}>
             {isSaving ? 'Сохранение…' : 'Сохранить'}
-          </button>
-          <button type="button" className={styles.resetBtn} onClick={resetDraft} disabled={isSaving || !hasUnsavedChanges}>
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={resetDraft} disabled={isSaving || !hasUnsavedChanges}>
             Сбросить
-          </button>
+          </Button>
           {success ? <span className={styles.status}>{success}</span> : null}
           {error ? <span className={styles.error}>{error}</span> : null}
         </div>

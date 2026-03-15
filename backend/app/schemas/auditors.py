@@ -12,6 +12,7 @@ AuditorGender = Literal['male', 'female']
 
 class AuditorItem(BaseModel):
   id: UUID
+  publicId: int
   lastName: str
   firstName: str
   middleName: str | None

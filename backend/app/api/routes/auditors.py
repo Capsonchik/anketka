@@ -100,6 +100,7 @@ def _parse_gender (value: object | None) -> AuditorGender | None:
 def to_auditor_item (a: Auditor) -> AuditorItem:
   return AuditorItem(
     id=a.id,
+    publicId=int(a.public_id),
     lastName=a.last_name,
     firstName=a.first_name,
     middleName=a.middle_name,

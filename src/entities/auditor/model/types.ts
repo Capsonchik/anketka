@@ -2,6 +2,7 @@ export type AuditorGender = 'male' | 'female'
 
 export type AuditorItem = {
   id: string
+  publicId: number
   lastName: string
   firstName: string
   middleName: string | null
