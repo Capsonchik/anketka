@@ -13,6 +13,8 @@ export function TeamUserModalDistributionTab ({
   companiesError,
   distError,
   isCompanyAccessSaving,
+  userHomeCompanyId,
+  companyAccessIds,
   activeDistributionCompanyId,
   filterOptions,
   filterTitles,
@@ -23,7 +25,7 @@ export function TeamUserModalDistributionTab ({
   pointsRegion,
   isDistSaving,
   onActiveDistributionCompanyIdChange,
-  onToggleCompanyAccess,
+  onCompanyAccessIdsChange,
   onDistDraftChange,
   onPointsQChange,
   onPointsRegionChange,
@@ -34,6 +36,8 @@ export function TeamUserModalDistributionTab ({
   companiesError: string | null
   distError: string | null
   isCompanyAccessSaving: boolean
+  userHomeCompanyId: string | null
+  companyAccessIds: string[]
   activeDistributionCompanyId: string | null
   filterOptions: Record<string, string[]>
   filterTitles: Record<string, string>
@@ -44,7 +48,7 @@ export function TeamUserModalDistributionTab ({
   pointsRegion: string | null
   isDistSaving: boolean
   onActiveDistributionCompanyIdChange: (companyId: string | null) => void
-  onToggleCompanyAccess: (enabled: boolean) => void
+  onCompanyAccessIdsChange: (next: string[]) => void
   onDistDraftChange: (next: ReplaceUserCompanyDistributionRequest) => void
   onPointsQChange: (value: string) => void
   onPointsRegionChange: (value: string | null) => void
@@ -59,7 +63,10 @@ export function TeamUserModalDistributionTab ({
         <SelectPicker
           value={activeDistributionCompanyId}
           onChange={(v) => onActiveDistributionCompanyIdChange((v as string | null) ?? null)}
-          data={(companiesAccess?.items ?? []).map((c) => ({ value: c.id, label: c.name }))}
+          data={(companiesAccess?.items ?? []).map((c) => ({
+            value: c.id,
+            label: c.id === userHomeCompanyId ? `${c.name} (основная)` : c.name,
+          }))}
           cleanable={false}
           searchable
           block
@@ -67,21 +74,20 @@ export function TeamUserModalDistributionTab ({
         />
       </FieldEdit>
 
-      <div className={styles.row}>
-        <div className={styles.label}>Доступ к клиенту</div>
-        <div style={{ display: 'grid', gap: 8 }}>
-          <Checkbox
-            checked={Boolean((companiesAccess?.items ?? []).find((c) => c.id === activeDistributionCompanyId)?.hasAccess)}
-            disabled={!activeDistributionCompanyId || !companiesAccess || isCompanyAccessSaving}
-            onChange={(_, next) => onToggleCompanyAccess(Boolean(next))}
-          >
-            {isCompanyAccessSaving ? 'Сохраняем доступ...' : 'Разрешить доступ'}
-          </Checkbox>
-          <div className={styles.hint}>
-            Если доступ выключен - пользователь не сможет переключиться на этого клиента в селекторе.
-          </div>
-        </div>
-      </div>
+      <FieldEdit label="Доступ к клиентам">
+        <CheckPicker
+          data={(companiesAccess?.items ?? []).map((c) => ({
+            value: c.id,
+            label: c.id === userHomeCompanyId ? `${c.name} (основная)` : c.name,
+          }))}
+          value={companyAccessIds}
+          onChange={(v) => onCompanyAccessIdsChange(Array.from(new Set((v as string[]) ?? [])))}
+          block
+          searchable
+          disabled={actualMode !== 'edit' || !companiesAccess?.items?.length || isCompanyAccessSaving}
+          placeholder={isCompanyAccessSaving ? 'Сохраняем доступы...' : 'Выберите клиентов...'}
+        />
+      </FieldEdit>
 
       <div className={styles.row}>
         <div className={styles.label}>Характеристики точки</div>

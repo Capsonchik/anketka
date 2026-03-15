@@ -401,18 +401,21 @@ export function TeamUserModal ({
     }
   }, [actualMode, isAdmin, open, tab, user?.id])
 
-  const handleToggleCompanyAccess = (next: boolean) => {
-    if (!user?.id || !companiesAccess || !activeDistributionCompanyId) return
-    const cid = activeDistributionCompanyId
-    const prev = companiesAccess.items ?? []
-    const nextIds = new Set(prev.filter((x) => x.hasAccess).map((x) => x.id))
-    if (next) nextIds.add(cid)
-    else nextIds.delete(cid)
-    const payload: ReplaceUserCompaniesAccessRequest = { companyIds: [...nextIds] }
+  const handleReplaceCompanyAccess = (next: string[]) => {
+    if (!user?.id || !companiesAccess) return
+    const payload: ReplaceUserCompaniesAccessRequest = { companyIds: [...new Set(next)] }
     setIsCompanyAccessSaving(true)
+    setCompaniesError(null)
     axiosMainRequest
       .put<UserCompaniesAccessResponse>(apiRoutes.team.userCompaniesAccess(user.id), payload)
-      .then((res) => setCompaniesAccess(res.data))
+      .then((res) => {
+        setCompaniesAccess(res.data)
+        const allowed = (res.data.items ?? []).filter((x) => x.hasAccess).map((x) => x.id)
+        setActiveDistributionCompanyId((prev) => {
+          if (prev && allowed.includes(prev)) return prev
+          return allowed[0] ?? res.data.items?.[0]?.id ?? null
+        })
+      })
       .catch((err: unknown) => setCompaniesError(getApiErrorMessage(err)))
       .finally(() => setIsCompanyAccessSaving(false))
   }
@@ -477,6 +480,8 @@ export function TeamUserModal ({
         companiesError={companiesError}
         distError={distError}
         isCompanyAccessSaving={isCompanyAccessSaving}
+        userHomeCompanyId={user.company?.id ?? null}
+        companyAccessIds={(companiesAccess?.items ?? []).filter((x) => x.hasAccess).map((x) => x.id)}
         activeDistributionCompanyId={activeDistributionCompanyId}
         filterOptions={filterOptions}
         filterTitles={filterTitles}
@@ -487,7 +492,7 @@ export function TeamUserModal ({
         pointsRegion={pointsRegion}
         isDistSaving={isDistSaving}
         onActiveDistributionCompanyIdChange={setActiveDistributionCompanyId}
-        onToggleCompanyAccess={handleToggleCompanyAccess}
+        onCompanyAccessIdsChange={handleReplaceCompanyAccess}
         onDistDraftChange={setDistDraft}
         onPointsQChange={setPointsQ}
         onPointsRegionChange={setPointsRegion}

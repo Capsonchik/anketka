@@ -1454,6 +1454,16 @@ async def _list_manageable_companies (db: AsyncSession, *, actor: User) -> list[
     res = await db.execute(stmt)
     return list(res.all())
 
+  # admin: all companies
+  if actor.role == UserRole.admin:
+    stmt = (
+      select(Company, CompanySettings)
+      .outerjoin(CompanySettings, CompanySettings.company_id == Company.id)
+      .order_by(Company.created_at.desc())
+    )
+    res = await db.execute(stmt)
+    return list(res.all())
+
   # non-owner: own company + explicitly granted companies
   stmt = (
     select(Company, CompanySettings)
