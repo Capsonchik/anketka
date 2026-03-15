@@ -170,8 +170,8 @@ export function TeamUserModal ({
 
   useEffect(() => {
     const uid = user?.id
-    const shouldLoadGroups = tab === 'role' && actualMode === 'edit'
-    if (!open || !uid || !canEdit || !shouldLoadGroups) {
+    const shouldLoadGroups = tab === 'role'
+    if (!open || !uid || !shouldLoadGroups) {
       setAllGroups([])
       setGroupsError(null)
       return

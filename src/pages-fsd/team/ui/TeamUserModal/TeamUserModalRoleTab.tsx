@@ -33,6 +33,9 @@ export function TeamUserModalRoleTab ({
   onPermissionsChange: (next: string[]) => void
   onGroupIdsChange: (next: string[]) => void
 }) {
+  const groupNameById = new Map(allGroups.map((group) => [group.id, group.name]))
+  const groupNames = formGroupIds.map((groupId) => groupNameById.get(groupId) ?? groupId)
+
   if (actualMode === 'view') {
     return (
       <div className={styles.grid}>
@@ -40,6 +43,20 @@ export function TeamUserModalRoleTab ({
         <div className={styles.row}>
           <div className={styles.label}>Права</div>
           <PermissionTags permissions={userPermissionsValue} />
+        </div>
+        <div className={styles.row}>
+          <div className={styles.label}>Пользовательские группы</div>
+          {groupsError ? <div className={styles.error}>{groupsError}</div> : null}
+          {!groupNames.length && !groupsError ? <div className={styles.value}>—</div> : null}
+          {groupNames.length ? (
+            <div className={styles.tags}>
+              {formGroupIds.map((groupId) => (
+                <span key={groupId} className={styles.tag}>
+                  {groupNameById.get(groupId) ?? groupId}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     )
